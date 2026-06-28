@@ -12,6 +12,7 @@ add_executable(FileFlattener
     src/main.cpp
     src/FileScanner.cpp
     src/Deduplicator.cpp
+    src/Renamer.cpp
 )
 
 target_include_directories(FileFlattener PRIVATE ${PICOSHA2_INCLUDE_DIRS})
