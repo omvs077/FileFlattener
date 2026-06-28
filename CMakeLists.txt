@@ -4,21 +4,10 @@ project(FileFlattener CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(ZLIB REQUIRED)
-find_package(minizip CONFIG REQUIRED)
-find_path(PICOSHA2_INCLUDE_DIRS "picosha2.h")
+add_subdirectory(core)
 
-add_executable(FileFlattener
-    src/main.cpp
-    src/FileScanner.cpp
-    src/Deduplicator.cpp
-    src/Renamer.cpp
-    src/ZipWriter.cpp
+add_executable(FileFlattenerCLI
+    app/main_cli.cpp
 )
 
-target_include_directories(FileFlattener PRIVATE ${PICOSHA2_INCLUDE_DIRS})
-
-target_link_libraries(FileFlattener PRIVATE
-    ZLIB::ZLIB
-    $<IF:$<TARGET_EXISTS:MINIZIP::minizip>,MINIZIP::minizip,MINIZIP::minizipstatic>
-)
+target_link_libraries(FileFlattenerCLI PRIVATE FileFlattenerCore)
