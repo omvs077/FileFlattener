@@ -10,6 +10,9 @@
 #include <QFileDialog>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QSplitter>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -22,7 +25,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle("FileFlattener (Desktop v1.0)");
-    resize(1100, 700);
+    resize(1200, 700);
     setAcceptDrops(true);
     setupUi();
 }
@@ -67,10 +70,25 @@ void MainWindow::setupUi() {
     filterRow->addWidget(m_filterRulesEdit);
     mainLayout->addLayout(filterRow);
 
+    // --- Split view: tree (left) + analytics table (right) ---
+    QSplitter* splitter = new QSplitter(Qt::Horizontal);
+
     m_treeWidget = new QTreeWidget();
     m_treeWidget->setHeaderLabels({ "Name", "Size (bytes)" });
-    m_treeWidget->setColumnWidth(0, 400);
-    mainLayout->addWidget(m_treeWidget, 1);
+    m_treeWidget->setColumnWidth(0, 350);
+    splitter->addWidget(m_treeWidget);
+
+    m_analyticsTable = new QTableWidget();
+    m_analyticsTable->setColumnCount(3);
+    m_analyticsTable->setHorizontalHeaderLabels({ "Extension", "Count", "Total Size (bytes)" });
+    m_analyticsTable->horizontalHeader()->setStretchLastSection(true);
+    m_analyticsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    splitter->addWidget(m_analyticsTable);
+
+    splitter->setStretchFactor(0, 2);
+    splitter->setStretchFactor(1, 1);
+
+    mainLayout->addWidget(splitter, 1);
 
     m_statusLabel = new QLabel("Ready. Select a folder and click Scan.");
     mainLayout->addWidget(m_statusLabel);
@@ -140,6 +158,7 @@ void MainWindow::runScan(const QString& path) {
 
     m_lastScanResult = result;
     populateTree();
+    populateAnalyticsTable();
 
     m_statusLabel->setText(QString("Scan complete. %1 files, %2 directories, %3 bytes total.")
         .arg(result.files.size())
@@ -147,8 +166,6 @@ void MainWindow::runScan(const QString& path) {
         .arg(result.totalSizeBytes));
 }
 
-// Normalize a filesystem-style relative path string ("a\\b" or "a/b") into
-// a list of clean path segments, regardless of platform separator.
 static QStringList splitPathSegments(const QString& path) {
     QStringList parts = path.split(QRegularExpression("[\\\\/]"));
     QStringList clean;
@@ -161,7 +178,6 @@ static QStringList splitPathSegments(const QString& path) {
 void MainWindow::populateTree() {
     m_treeWidget->clear();
 
-    // Key: normalized "/"-joined segment path -> the QTreeWidgetItem for that folder.
     QMap<QString, QTreeWidgetItem*> folderItems;
 
     auto getOrCreateFolder = [&](const QStringList& segments) -> QTreeWidgetItem* {
@@ -217,4 +233,38 @@ void MainWindow::populateTree() {
     }
 
     m_treeWidget->expandAll();
+}
+
+void MainWindow::populateAnalyticsTable() {
+    struct ExtStats {
+        int count = 0;
+        uint64_t totalSize = 0;
+    };
+
+    QMap<QString, ExtStats> statsByExt;
+
+    for (const auto& file : m_lastScanResult.files) {
+        QString ext = QString::fromStdString(file.relativePath.extension().string());
+        if (ext.isEmpty()) ext = "(no extension)";
+        ext = ext.toLower();
+
+        ExtStats& s = statsByExt[ext];
+        s.count++;
+        s.totalSize += file.sizeBytes;
+    }
+
+    QList<QString> exts = statsByExt.keys();
+    std::sort(exts.begin(), exts.end(), [&](const QString& a, const QString& b) {
+        return statsByExt[a].totalSize > statsByExt[b].totalSize;
+    });
+
+    m_analyticsTable->setRowCount(exts.size());
+    int row = 0;
+    for (const QString& ext : exts) {
+        const ExtStats& s = statsByExt[ext];
+        m_analyticsTable->setItem(row, 0, new QTableWidgetItem(ext));
+        m_analyticsTable->setItem(row, 1, new QTableWidgetItem(QString::number(s.count)));
+        m_analyticsTable->setItem(row, 2, new QTableWidgetItem(QString::number(s.totalSize)));
+        row++;
+    }
 }

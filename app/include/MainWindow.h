@@ -6,6 +6,7 @@ class QLineEdit;
 class QPushButton;
 class QComboBox;
 class QTreeWidget;
+class QTableWidget;
 class QLabel;
 
 class MainWindow : public QMainWindow {
@@ -27,6 +28,7 @@ private:
     void setupUi();
     void runScan(const QString& path);
     void populateTree();
+    void populateAnalyticsTable();
 
     QLineEdit* m_rootFolderEdit = nullptr;
     QPushButton* m_browseRootBtn = nullptr;
@@ -39,6 +41,7 @@ private:
     QPushButton* m_scanBtn = nullptr;
 
     QTreeWidget* m_treeWidget = nullptr;
+    QTableWidget* m_analyticsTable = nullptr;
     QLabel* m_statusLabel = nullptr;
 
     ScanResult m_lastScanResult;
