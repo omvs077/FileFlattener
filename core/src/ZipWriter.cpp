@@ -7,21 +7,13 @@ namespace fs = std::filesystem;
 
 static bool writeMemoryEntry(zipFile zf, const std::string& entryName, const std::string& content, std::string& errorMsg) {
     int openResult = zipOpenNewFileInZip(
-        zf,
-        entryName.c_str(),
-        nullptr,
-        nullptr, 0,
-        nullptr, 0,
-        nullptr,
-        Z_DEFLATED,
-        Z_DEFAULT_COMPRESSION
+        zf, entryName.c_str(), nullptr, nullptr, 0, nullptr, 0, nullptr,
+        Z_DEFLATED, Z_DEFAULT_COMPRESSION
     );
-
     if (openResult != ZIP_OK) {
         errorMsg = "Failed to open entry in ZIP for: " + entryName;
         return false;
     }
-
     if (!content.empty()) {
         int writeResult = zipWriteInFileInZip(zf, content.data(), static_cast<unsigned int>(content.size()));
         if (writeResult != ZIP_OK) {
@@ -30,7 +22,6 @@ static bool writeMemoryEntry(zipFile zf, const std::string& entryName, const std
             return false;
         }
     }
-
     zipCloseFileInZip(zf);
     return true;
 }
@@ -41,7 +32,8 @@ bool ZipWriter::writeZip(
     const fs::path& outputZipPath,
     std::string& errorMsg,
     const std::string& structureTextContent,
-    const std::string& manifestJsonContent)
+    const std::string& manifestJsonContent,
+    ZipProgressCallback onProgress)
 {
     zipFile zf = zipOpen(outputZipPath.string().c_str(), APPEND_STATUS_CREATE);
     if (!zf) {
@@ -49,7 +41,6 @@ bool ZipWriter::writeZip(
         return false;
     }
 
-    // --- Write structure.txt and manifest.json first (per output schema) ---
     if (!structureTextContent.empty()) {
         if (!writeMemoryEntry(zf, "structure.txt", structureTextContent, errorMsg)) {
             zipClose(zf, nullptr);
@@ -66,20 +57,16 @@ bool ZipWriter::writeZip(
     constexpr size_t kChunkSize = 64 * 1024;
     std::vector<char> buffer(kChunkSize);
 
+    uint64_t totalBytes = scan.totalSizeBytes;
+    uint64_t bytesWritten = 0;
+
     for (const auto& ff : flattened) {
         const ScannedFile& src = scan.files[ff.originalIndex];
 
         int openResult = zipOpenNewFileInZip(
-            zf,
-            ff.flattenedName.c_str(),
-            nullptr,
-            nullptr, 0,
-            nullptr, 0,
-            nullptr,
-            Z_DEFLATED,
-            Z_DEFAULT_COMPRESSION
+            zf, ff.flattenedName.c_str(), nullptr, nullptr, 0, nullptr, 0, nullptr,
+            Z_DEFLATED, Z_DEFAULT_COMPRESSION
         );
-
         if (openResult != ZIP_OK) {
             errorMsg = "Failed to open entry in ZIP for: " + ff.flattenedName;
             zipClose(zf, nullptr);
@@ -104,6 +91,8 @@ bool ZipWriter::writeZip(
                     zipClose(zf, nullptr);
                     return false;
                 }
+                bytesWritten += static_cast<uint64_t>(bytesRead);
+                if (onProgress) onProgress(bytesWritten, totalBytes);
             }
             if (in.eof()) break;
         }

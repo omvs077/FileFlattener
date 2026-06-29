@@ -33,6 +33,18 @@ PreviewDialog::PreviewDialog(
     layout->addWidget(new QLabel("<b>Scan Diagnostics:</b>"));
     layout->addWidget(new QLabel(QString("  Total Eligible Files Found: %1").arg(flattened.size())));
     layout->addWidget(new QLabel(QString("  Estimated Archive Size: %1 bytes").arg(scan.totalSizeBytes)));
+
+    {
+        constexpr double kThroughputBytesPerSec = 25.0 * 1024 * 1024; // 25 MB/s baseline
+        double estSeconds = static_cast<double>(scan.totalSizeBytes) / kThroughputBytesPerSec;
+        QString estLabel;
+        if (estSeconds < 60.0) {
+            estLabel = QString("  Estimated Processing Time: ~%1 sec").arg(QString::number(estSeconds, (char)0x66, 1));
+        } else {
+            estLabel = QString("  Estimated Processing Time: ~%1 min").arg(QString::number(estSeconds / 60.0, (char)0x66, 1));
+        }
+        layout->addWidget(new QLabel(estLabel));
+    }
     layout->addWidget(new QLabel(QString("  Skipped Symlinks: %1").arg(scan.skippedSymlinks)));
 
     QFrame* line2 = new QFrame();
@@ -73,3 +85,4 @@ PreviewDialog::PreviewDialog(
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(confirmBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
+

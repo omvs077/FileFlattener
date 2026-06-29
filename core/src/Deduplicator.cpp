@@ -16,7 +16,7 @@ std::string Deduplicator::sha256File(const fs::path& path, std::string& errorMsg
     return picosha2::bytes_to_hex_string(hash.begin(), hash.end());
 }
 
-bool Deduplicator::process(const ScanResult& scan, DedupResult& outResult, std::string& errorMsg) {
+bool Deduplicator::process(const ScanResult& scan, DedupResult& outResult, std::string& errorMsg, DedupProgressCallback onProgress) {
     outResult = DedupResult{};
 
     std::unordered_map<std::string, std::vector<size_t>> byFilename;
@@ -35,6 +35,13 @@ bool Deduplicator::process(const ScanResult& scan, DedupResult& outResult, std::
         bySize[scan.files[i].sizeBytes].push_back(i);
     }
 
+    // Count how many files actually need hashing (size-collision groups only)
+    size_t totalToHash = 0;
+    for (auto& sizeGroup : bySize) {
+        if (sizeGroup.second.size() > 1) totalToHash += sizeGroup.second.size();
+    }
+    size_t hashedSoFar = 0;
+
     for (auto& sizeGroup : bySize) {
         auto& indices = sizeGroup.second;
         if (indices.size() < 2) continue;
@@ -42,6 +49,9 @@ bool Deduplicator::process(const ScanResult& scan, DedupResult& outResult, std::
         std::unordered_map<std::string, std::vector<size_t>> byHash;
         for (size_t idx : indices) {
             std::string hash = sha256File(scan.files[idx].absolutePath, errorMsg);
+            hashedSoFar++;
+            if (onProgress) onProgress(hashedSoFar, totalToHash);
+
             if (hash.empty()) {
                 errorMsg.clear();
                 continue;
