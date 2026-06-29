@@ -23,6 +23,7 @@ private slots:
     void onBrowseRootFolder();
     void onBrowseSaveTarget();
     void onScanClicked();
+    void onFlattenZipClicked();
 
 private:
     void setupUi();
@@ -39,6 +40,7 @@ private:
     QComboBox* m_presetCombo = nullptr;
     QLineEdit* m_filterRulesEdit = nullptr;
     QPushButton* m_scanBtn = nullptr;
+    QPushButton* m_flattenZipBtn = nullptr;
 
     QTreeWidget* m_treeWidget = nullptr;
     QTableWidget* m_analyticsTable = nullptr;

@@ -19,6 +19,8 @@ add_executable(FileFlattenerApp
     app/main_gui.cpp
     app/MainWindow.cpp
     app/include/MainWindow.h
+    app/dialogs/PreviewDialog.cpp
+    app/include/PreviewDialog.h
 )
 target_include_directories(FileFlattenerApp PRIVATE app/include)
 target_link_libraries(FileFlattenerApp PRIVATE FileFlattenerCore Qt6::Widgets)
@@ -34,4 +36,3 @@ if(WINDEPLOYQT_EXE)
         COMMENT "Deploying Qt dependencies"
     )
 endif()
-

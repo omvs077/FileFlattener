@@ -1,4 +1,8 @@
 ﻿#include "MainWindow.h"
+#include "Deduplicator.h"
+#include "Renamer.h"
+#include "ZipWriter.h"
+#include "PreviewDialog.h"
 
 #include <QWidget>
 #include <QVBoxLayout>
@@ -20,6 +24,7 @@
 #include <QFileInfo>
 #include <QMap>
 #include <QRegularExpression>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -70,7 +75,6 @@ void MainWindow::setupUi() {
     filterRow->addWidget(m_filterRulesEdit);
     mainLayout->addLayout(filterRow);
 
-    // --- Split view: tree (left) + analytics table (right) ---
     QSplitter* splitter = new QSplitter(Qt::Horizontal);
 
     m_treeWidget = new QTreeWidget();
@@ -93,11 +97,19 @@ void MainWindow::setupUi() {
     m_statusLabel = new QLabel("Ready. Select a folder and click Scan.");
     mainLayout->addWidget(m_statusLabel);
 
+    QHBoxLayout* actionRow = new QHBoxLayout();
+    actionRow->addStretch();
+    m_flattenZipBtn = new QPushButton("FLATTEN && ZIP");
+    m_flattenZipBtn->setMinimumHeight(36);
+    actionRow->addWidget(m_flattenZipBtn);
+    mainLayout->addLayout(actionRow);
+
     setCentralWidget(central);
 
     connect(m_browseRootBtn, &QPushButton::clicked, this, &MainWindow::onBrowseRootFolder);
     connect(m_browseSaveBtn, &QPushButton::clicked, this, &MainWindow::onBrowseSaveTarget);
     connect(m_scanBtn, &QPushButton::clicked, this, &MainWindow::onScanClicked);
+    connect(m_flattenZipBtn, &QPushButton::clicked, this, &MainWindow::onFlattenZipClicked);
 }
 
 void MainWindow::onBrowseRootFolder() {
@@ -164,6 +176,48 @@ void MainWindow::runScan(const QString& path) {
         .arg(result.files.size())
         .arg(result.totalDirectories)
         .arg(result.totalSizeBytes));
+}
+
+void MainWindow::onFlattenZipClicked() {
+    if (m_lastScanResult.files.empty()) {
+        QMessageBox::warning(this, "No Scan Data", "Please scan a folder first before exporting.");
+        return;
+    }
+
+    QString targetZip = m_saveTargetEdit->text();
+    if (targetZip.isEmpty()) {
+        QMessageBox::warning(this, "No Save Target", "Please choose a save target ZIP path first.");
+        return;
+    }
+
+    // --- Targeted Pass 2: run dedup (size-group + hash) only now ---
+    Deduplicator dedup;
+    DedupResult dedupResult;
+    std::string err;
+    if (!dedup.process(m_lastScanResult, dedupResult, err)) {
+        QMessageBox::critical(this, "Deduplication Failed", QString::fromStdString(err));
+        return;
+    }
+
+    Renamer renamer;
+    auto flattened = renamer.resolve(m_lastScanResult, dedupResult);
+
+    // --- Show the mandatory Pre-Export Preview Modal ---
+    PreviewDialog dialog(m_lastScanResult, dedupResult, flattened, targetZip, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        m_statusLabel->setText("Export cancelled.");
+        return;
+    }
+
+    // --- Confirmed: stream to ZIP ---
+    ZipWriter writer;
+    if (!writer.writeZip(m_lastScanResult, flattened, targetZip.toStdString(), err)) {
+        QMessageBox::critical(this, "Export Failed", QString::fromStdString(err));
+        return;
+    }
+
+    m_statusLabel->setText(QString("Export complete: %1").arg(targetZip));
+    QMessageBox::information(this, "Export Complete", QString("ZIP created successfully at:\n%1").arg(targetZip));
 }
 
 static QStringList splitPathSegments(const QString& path) {
