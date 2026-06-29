@@ -1,11 +1,10 @@
-#include "FileScanner.h"
+﻿#include "FileScanner.h"
 #include <system_error>
 #include <array>
 
 namespace fs = std::filesystem;
 
 bool FileScanner::isBlockedSystemPath(const fs::path& canonical) {
-    // Compare against common system roots (Windows-focused for now)
     std::array<std::string, 5> blocked = {
         "C:\\", "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData"
     };
@@ -43,7 +42,7 @@ bool FileScanner::validateRoot(const fs::path& root, std::string& errorMsg) {
     return true;
 }
 
-bool FileScanner::scan(const fs::path& root, ScanResult& outResult, std::string& errorMsg) {
+bool FileScanner::scan(const fs::path& root, ScanResult& outResult, std::string& errorMsg, const FilterEngine* filter) {
     std::error_code ec;
     fs::path canonicalRoot = fs::canonical(root, ec);
     if (ec) {
@@ -67,20 +66,17 @@ bool FileScanner::scan(const fs::path& root, ScanResult& outResult, std::string&
 
     for (; it != end; it.increment(ec)) {
         if (ec) {
-            // Skip this entry, keep going
             ec.clear();
             continue;
         }
 
         const fs::directory_entry& entry = *it;
 
-        // Depth check
         if (it.depth() > kMaxDepth) {
             errorMsg = "Directory depth exceeds limit (" + std::to_string(kMaxDepth) + ").";
             return false;
         }
 
-        // Symlink check — drop and don't recurse
         if (fs::is_symlink(entry.path(), ec)) {
             outResult.skippedSymlinks++;
             it.disable_recursion_pending();
@@ -88,12 +84,25 @@ bool FileScanner::scan(const fs::path& root, ScanResult& outResult, std::string&
         }
 
         if (entry.is_directory(ec)) {
+            // Check if this directory should be excluded entirely (skip recursion).
+            if (filter && filter->shouldExcludeDirectory(entry.path().filename())) {
+                outResult.filteredOutCount++;
+                it.disable_recursion_pending();
+                continue;
+            }
             outResult.totalDirectories++;
             continue;
         }
 
         if (!entry.is_regular_file(ec)) {
-            continue; // skip devices, sockets, etc.
+            continue;
+        }
+
+        fs::path relPath = fs::relative(entry.path(), canonicalRoot, ec);
+
+        if (filter && filter->shouldExcludeFile(relPath)) {
+            outResult.filteredOutCount++;
+            continue;
         }
 
         uint64_t size = entry.file_size(ec);
@@ -104,19 +113,14 @@ bool FileScanner::scan(const fs::path& root, ScanResult& outResult, std::string&
 
         ScannedFile sf;
         sf.absolutePath = entry.path();
-        sf.relativePath = fs::relative(entry.path(), canonicalRoot, ec);
+        sf.relativePath = relPath;
         sf.sizeBytes = size;
 
         outResult.files.push_back(std::move(sf));
         outResult.totalSizeBytes += size;
 
-        // Hard limit checks
-        if (outResult.files.size() > kMaxFiles) {
-            errorMsg = "File count exceeds limit (" + std::to_string(kMaxFiles) + ").";
-            return false;
-        }
         if (outResult.totalSizeBytes > kMaxTotalBytes) {
-            errorMsg = "Total size exceeds limit (500 MB).";
+            errorMsg = "Total size exceeds limit (20 GB).";
             return false;
         }
     }
