@@ -34,3 +34,4 @@ if(WINDEPLOYQT_EXE)
         COMMENT "Deploying Qt dependencies"
     )
 endif()
+
