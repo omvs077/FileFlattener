@@ -8,6 +8,9 @@ class QComboBox;
 class QTreeWidget;
 class QTableWidget;
 class QLabel;
+class QThread;
+class QProgressDialog;
+class FlattenWorker;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -24,6 +27,11 @@ private slots:
     void onBrowseSaveTarget();
     void onScanClicked();
     void onFlattenZipClicked();
+
+    void onWorkerStageChanged(QString stage);
+    void onWorkerProgressChanged(int percent);
+    void onWorkerFinishedSuccess(QString zipPath);
+    void onWorkerFinishedError(QString errorMessage);
 
 private:
     void setupUi();
@@ -47,4 +55,8 @@ private:
     QLabel* m_statusLabel = nullptr;
 
     ScanResult m_lastScanResult;
+
+    QThread* m_workerThread = nullptr;
+    FlattenWorker* m_worker = nullptr;
+    QProgressDialog* m_progressDialog = nullptr;
 };

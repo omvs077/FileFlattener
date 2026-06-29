@@ -4,6 +4,7 @@
 #include "ZipWriter.h"
 #include "PreviewDialog.h"
 #include "StructureExporter.h"
+#include "FlattenWorker.h"
 
 #include <QWidget>
 #include <QVBoxLayout>
@@ -23,11 +24,14 @@
 #include <QMimeData>
 #include <QUrl>
 #include <QFileInfo>
-#include <QDir>
 #include <QMap>
 #include <QRegularExpression>
-#include <QFileIconProvider>
 #include <QMessageBox>
+#include <QFileIconProvider>
+#include <QDir>
+#include <QThread>
+#include <QProgressDialog>
+#include <QCoreApplication>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -35,6 +39,7 @@ MainWindow::MainWindow(QWidget* parent)
     setWindowTitle("FileFlattener (Desktop v1.0)");
     resize(1200, 700);
     setAcceptDrops(true);
+    setWindowIcon(QIcon(QCoreApplication::applicationDirPath() + "/app_icon.ico"));
     setupUi();
 }
 
@@ -122,8 +127,7 @@ void MainWindow::onBrowseRootFolder() {
 
         QString folderName = QFileInfo(dir).fileName();
         if (folderName.isEmpty()) folderName = "export";
-        QString suggestedZip = QDir(dir).filePath("../" + folderName + "_export.zip");
-        suggestedZip = QDir::cleanPath(suggestedZip);
+        QString suggestedZip = QDir::cleanPath(QDir(dir).filePath("../" + folderName + "_export.zip"));
         m_saveTargetEdit->setText(suggestedZip);
     }
 }
@@ -205,40 +209,91 @@ void MainWindow::onFlattenZipClicked() {
         return;
     }
 
-    // --- Targeted Pass 2: run dedup (size-group + hash) only now ---
-    Deduplicator dedup;
-    DedupResult dedupResult;
-    std::string err;
-    if (!dedup.process(m_lastScanResult, dedupResult, err)) {
-        QMessageBox::critical(this, "Deduplication Failed", QString::fromStdString(err));
-        return;
+    QString projectName = QFileInfo(m_rootFolderEdit->text()).fileName();
+    if (projectName.isEmpty()) projectName = "Export";
+
+    // Lightweight pre-check: filename collisions only (no hashing yet --
+    // content duplicate detection happens inside the worker thread).
+    DedupResult quickDedupPreview;
+    for (size_t i = 0; i < m_lastScanResult.files.size(); ++i) {
+        std::string fname = m_lastScanResult.files[i].relativePath.filename().string();
+        quickDedupPreview.nameCollisions[fname].push_back(i);
+    }
+    for (auto it = quickDedupPreview.nameCollisions.begin(); it != quickDedupPreview.nameCollisions.end(); ) {
+        if (it->second.size() < 2) it = quickDedupPreview.nameCollisions.erase(it);
+        else ++it;
     }
 
-    Renamer renamer;
-    auto flattened = renamer.resolve(m_lastScanResult, dedupResult);
+    Renamer previewRenamer;
+    auto previewFlattened = previewRenamer.resolve(m_lastScanResult, quickDedupPreview);
 
-    // --- Show the mandatory Pre-Export Preview Modal ---
-    PreviewDialog dialog(m_lastScanResult, dedupResult, flattened, targetZip, this);
-    if (dialog.exec() != QDialog::Accepted) {
+    PreviewDialog previewDialog(m_lastScanResult, quickDedupPreview, previewFlattened, targetZip, this);
+    if (previewDialog.exec() != QDialog::Accepted) {
         m_statusLabel->setText("Export cancelled.");
         return;
     }
 
-    // --- Confirmed: stream to ZIP ---
-    QString projectName = QFileInfo(m_rootFolderEdit->text()).fileName();
-    if (projectName.isEmpty()) projectName = "Export";
+    m_flattenZipBtn->setEnabled(false);
+    m_scanBtn->setEnabled(false);
 
-    std::string structureText = StructureExporter::buildStructureText(m_lastScanResult, projectName.toStdString());
-    std::string manifestJson = StructureExporter::buildManifestJson(m_lastScanResult, flattened, projectName.toStdString());
+    m_progressDialog = new QProgressDialog("Preparing...", "Cancel", 0, 100, this);
+    m_progressDialog->setWindowTitle("Exporting");
+    m_progressDialog->setWindowModality(Qt::WindowModal);
+    m_progressDialog->setMinimumDuration(0);
+    m_progressDialog->setValue(0);
 
-    ZipWriter writer;
-    if (!writer.writeZip(m_lastScanResult, flattened, targetZip.toStdString(), err, structureText, manifestJson)) {
-        QMessageBox::critical(this, "Export Failed", QString::fromStdString(err));
-        return;
+    m_workerThread = new QThread(this);
+    m_worker = new FlattenWorker(m_lastScanResult, targetZip, projectName);
+    m_worker->moveToThread(m_workerThread);
+
+    connect(m_workerThread, &QThread::started, m_worker, &FlattenWorker::run);
+
+    connect(m_worker, &FlattenWorker::stageChanged, this, &MainWindow::onWorkerStageChanged);
+    connect(m_worker, &FlattenWorker::progressChanged, this, &MainWindow::onWorkerProgressChanged);
+    connect(m_worker, &FlattenWorker::finishedSuccess, this, &MainWindow::onWorkerFinishedSuccess);
+    connect(m_worker, &FlattenWorker::finishedError, this, &MainWindow::onWorkerFinishedError);
+
+    connect(m_worker, &FlattenWorker::finishedSuccess, m_workerThread, &QThread::quit);
+    connect(m_worker, &FlattenWorker::finishedError, m_workerThread, &QThread::quit);
+    connect(m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
+    connect(m_workerThread, &QThread::finished, m_workerThread, &QObject::deleteLater);
+
+    m_workerThread->start();
+    m_progressDialog->show();
+}
+
+void MainWindow::onWorkerStageChanged(QString stage) {
+    if (m_progressDialog) m_progressDialog->setLabelText(stage);
+}
+
+void MainWindow::onWorkerProgressChanged(int percent) {
+    if (m_progressDialog) m_progressDialog->setValue(percent);
+}
+
+void MainWindow::onWorkerFinishedSuccess(QString zipPath) {
+    if (m_progressDialog) {
+        m_progressDialog->close();
+        m_progressDialog->deleteLater();
+        m_progressDialog = nullptr;
     }
+    m_flattenZipBtn->setEnabled(true);
+    m_scanBtn->setEnabled(true);
 
-    m_statusLabel->setText(QString("Export complete: %1").arg(targetZip));
-    QMessageBox::information(this, "Export Complete", QString("ZIP created successfully at:\n%1").arg(targetZip));
+    m_statusLabel->setText(QString("Export complete: %1").arg(zipPath));
+    QMessageBox::information(this, "Export Complete", QString("ZIP created successfully at:\n%1").arg(zipPath));
+}
+
+void MainWindow::onWorkerFinishedError(QString errorMessage) {
+    if (m_progressDialog) {
+        m_progressDialog->close();
+        m_progressDialog->deleteLater();
+        m_progressDialog = nullptr;
+    }
+    m_flattenZipBtn->setEnabled(true);
+    m_scanBtn->setEnabled(true);
+
+    m_statusLabel->setText("Export failed.");
+    QMessageBox::critical(this, "Export Failed", errorMessage);
 }
 
 static QStringList splitPathSegments(const QString& path) {
@@ -254,6 +309,7 @@ void MainWindow::populateTree() {
     m_treeWidget->clear();
 
     QMap<QString, QTreeWidgetItem*> folderItems;
+    static QFileIconProvider iconProvider;
 
     auto getOrCreateFolder = [&](const QStringList& segments) -> QTreeWidgetItem* {
         QTreeWidgetItem* current = nullptr;
@@ -267,7 +323,6 @@ void MainWindow::populateTree() {
                 continue;
             }
 
-            static QFileIconProvider iconProvider;
             QTreeWidgetItem* folderItem = new QTreeWidgetItem();
             folderItem->setText(0, seg);
             folderItem->setIcon(0, iconProvider.icon(QFileIconProvider::Folder));
@@ -298,11 +353,10 @@ void MainWindow::populateTree() {
             parentItem = getOrCreateFolder(folderSegments);
         }
 
-        static QFileIconProvider fileIconProvider;
         QTreeWidgetItem* fileItem = new QTreeWidgetItem();
         fileItem->setText(0, fileName);
         fileItem->setText(1, QString::number(file.sizeBytes));
-        fileItem->setIcon(0, fileIconProvider.icon(QFileIconProvider::File));
+        fileItem->setIcon(0, iconProvider.icon(QFileIconProvider::File));
 
         if (parentItem) {
             parentItem->addChild(fileItem);
@@ -345,14 +399,10 @@ void MainWindow::populateAnalyticsTable() {
         const ExtStats& s = statsByExt[ext];
 
         QTableWidgetItem* extItem = new QTableWidgetItem(ext);
-
-        // Use a representative dummy filename with this extension to get a
-        // realistic shell icon (e.g. "x.txt", "x.png").
         QString sampleName = (ext == "(no extension)") ? QStringLiteral("file") : ("x" + ext);
-        QFileIconProvider::IconType fallbackType = QFileIconProvider::File;
         QIcon icon = tableIconProvider.icon(QFileInfo(sampleName));
         if (icon.isNull()) {
-            icon = tableIconProvider.icon(fallbackType);
+            icon = tableIconProvider.icon(QFileIconProvider::File);
         }
         extItem->setIcon(icon);
 
@@ -362,11 +412,6 @@ void MainWindow::populateAnalyticsTable() {
         row++;
     }
 }
-
-
-
-
-
 
 
 

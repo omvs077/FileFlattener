@@ -65,7 +65,7 @@ PreviewDialog::PreviewDialog(
         layout->addWidget(new QLabel(QString("  Content Duplicates: %1 identical payload group(s)")
             .arg(dedup.contentDuplicates.size())));
     } else {
-        layout->addWidget(new QLabel("  Content Duplicates: none"));
+        layout->addWidget(new QLabel("  Content Duplicates: will be checked during export"));
     }
 
     QFrame* line3 = new QFrame();
@@ -85,4 +85,5 @@ PreviewDialog::PreviewDialog(
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(confirmBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
+
 

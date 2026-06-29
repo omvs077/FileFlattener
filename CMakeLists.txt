@@ -16,6 +16,7 @@ target_link_libraries(FileFlattenerCLI PRIVATE FileFlattenerCore)
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(FileFlattenerApp
+    app/resources/app.rc
     app/main_gui.cpp
     app/MainWindow.cpp
     app/include/MainWindow.h
@@ -31,6 +32,13 @@ set_target_properties(FileFlattenerApp PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+add_custom_command(TARGET FileFlattenerApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/app/resources/app_icon.ico"
+        "$<TARGET_FILE_DIR:FileFlattenerApp>/app_icon.ico"
+    COMMENT "Copying app icon next to exe"
+)
+
 find_program(WINDEPLOYQT_EXE windeployqt HINTS "C:/Qt/6.11.1/msvc2022_64/bin")
 if(WINDEPLOYQT_EXE)
     add_custom_command(TARGET FileFlattenerApp POST_BUILD
@@ -38,4 +46,6 @@ if(WINDEPLOYQT_EXE)
         COMMENT "Deploying Qt dependencies"
     )
 endif()
+
+
 
