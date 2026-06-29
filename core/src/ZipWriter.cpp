@@ -5,11 +5,43 @@
 
 namespace fs = std::filesystem;
 
+static bool writeMemoryEntry(zipFile zf, const std::string& entryName, const std::string& content, std::string& errorMsg) {
+    int openResult = zipOpenNewFileInZip(
+        zf,
+        entryName.c_str(),
+        nullptr,
+        nullptr, 0,
+        nullptr, 0,
+        nullptr,
+        Z_DEFLATED,
+        Z_DEFAULT_COMPRESSION
+    );
+
+    if (openResult != ZIP_OK) {
+        errorMsg = "Failed to open entry in ZIP for: " + entryName;
+        return false;
+    }
+
+    if (!content.empty()) {
+        int writeResult = zipWriteInFileInZip(zf, content.data(), static_cast<unsigned int>(content.size()));
+        if (writeResult != ZIP_OK) {
+            errorMsg = "Failed writing data into ZIP for: " + entryName;
+            zipCloseFileInZip(zf);
+            return false;
+        }
+    }
+
+    zipCloseFileInZip(zf);
+    return true;
+}
+
 bool ZipWriter::writeZip(
     const ScanResult& scan,
     const std::vector<FlattenedFile>& flattened,
     const fs::path& outputZipPath,
-    std::string& errorMsg)
+    std::string& errorMsg,
+    const std::string& structureTextContent,
+    const std::string& manifestJsonContent)
 {
     zipFile zf = zipOpen(outputZipPath.string().c_str(), APPEND_STATUS_CREATE);
     if (!zf) {
@@ -17,7 +49,21 @@ bool ZipWriter::writeZip(
         return false;
     }
 
-    constexpr size_t kChunkSize = 64 * 1024; // 64 KB streaming buffer
+    // --- Write structure.txt and manifest.json first (per output schema) ---
+    if (!structureTextContent.empty()) {
+        if (!writeMemoryEntry(zf, "structure.txt", structureTextContent, errorMsg)) {
+            zipClose(zf, nullptr);
+            return false;
+        }
+    }
+    if (!manifestJsonContent.empty()) {
+        if (!writeMemoryEntry(zf, "manifest.json", manifestJsonContent, errorMsg)) {
+            zipClose(zf, nullptr);
+            return false;
+        }
+    }
+
+    constexpr size_t kChunkSize = 64 * 1024;
     std::vector<char> buffer(kChunkSize);
 
     for (const auto& ff : flattened) {
@@ -26,10 +72,10 @@ bool ZipWriter::writeZip(
         int openResult = zipOpenNewFileInZip(
             zf,
             ff.flattenedName.c_str(),
-            nullptr,            // zip_fileinfo (default timestamps)
-            nullptr, 0,         // extrafield_local
-            nullptr, 0,         // extrafield_global
-            nullptr,            // comment
+            nullptr,
+            nullptr, 0,
+            nullptr, 0,
+            nullptr,
             Z_DEFLATED,
             Z_DEFAULT_COMPRESSION
         );

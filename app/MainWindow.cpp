@@ -3,6 +3,7 @@
 #include "Renamer.h"
 #include "ZipWriter.h"
 #include "PreviewDialog.h"
+#include "StructureExporter.h"
 
 #include <QWidget>
 #include <QVBoxLayout>
@@ -22,8 +23,10 @@
 #include <QMimeData>
 #include <QUrl>
 #include <QFileInfo>
+#include <QDir>
 #include <QMap>
 #include <QRegularExpression>
+#include <QFileIconProvider>
 #include <QMessageBox>
 
 MainWindow::MainWindow(QWidget* parent)
@@ -116,6 +119,12 @@ void MainWindow::onBrowseRootFolder() {
     QString dir = QFileDialog::getExistingDirectory(this, "Select Root Folder");
     if (!dir.isEmpty()) {
         m_rootFolderEdit->setText(dir);
+
+        QString folderName = QFileInfo(dir).fileName();
+        if (folderName.isEmpty()) folderName = "export";
+        QString suggestedZip = QDir(dir).filePath("../" + folderName + "_export.zip");
+        suggestedZip = QDir::cleanPath(suggestedZip);
+        m_saveTargetEdit->setText(suggestedZip);
     }
 }
 
@@ -142,6 +151,12 @@ void MainWindow::dropEvent(QDropEvent* event) {
         QString path = urls.first().toLocalFile();
         if (QFileInfo(path).isDir()) {
             m_rootFolderEdit->setText(path);
+
+            QString folderName = QFileInfo(path).fileName();
+            if (folderName.isEmpty()) folderName = "export";
+            QString suggestedZip = QDir::cleanPath(QDir(path).filePath("../" + folderName + "_export.zip"));
+            m_saveTargetEdit->setText(suggestedZip);
+
             runScan(path);
         }
     }
@@ -210,8 +225,14 @@ void MainWindow::onFlattenZipClicked() {
     }
 
     // --- Confirmed: stream to ZIP ---
+    QString projectName = QFileInfo(m_rootFolderEdit->text()).fileName();
+    if (projectName.isEmpty()) projectName = "Export";
+
+    std::string structureText = StructureExporter::buildStructureText(m_lastScanResult, projectName.toStdString());
+    std::string manifestJson = StructureExporter::buildManifestJson(m_lastScanResult, flattened, projectName.toStdString());
+
     ZipWriter writer;
-    if (!writer.writeZip(m_lastScanResult, flattened, targetZip.toStdString(), err)) {
+    if (!writer.writeZip(m_lastScanResult, flattened, targetZip.toStdString(), err, structureText, manifestJson)) {
         QMessageBox::critical(this, "Export Failed", QString::fromStdString(err));
         return;
     }
@@ -246,8 +267,10 @@ void MainWindow::populateTree() {
                 continue;
             }
 
+            static QFileIconProvider iconProvider;
             QTreeWidgetItem* folderItem = new QTreeWidgetItem();
             folderItem->setText(0, seg);
+            folderItem->setIcon(0, iconProvider.icon(QFileIconProvider::Folder));
 
             if (current) {
                 current->addChild(folderItem);
@@ -275,9 +298,11 @@ void MainWindow::populateTree() {
             parentItem = getOrCreateFolder(folderSegments);
         }
 
+        static QFileIconProvider fileIconProvider;
         QTreeWidgetItem* fileItem = new QTreeWidgetItem();
         fileItem->setText(0, fileName);
         fileItem->setText(1, QString::number(file.sizeBytes));
+        fileItem->setIcon(0, fileIconProvider.icon(QFileIconProvider::File));
 
         if (parentItem) {
             parentItem->addChild(fileItem);
@@ -312,13 +337,37 @@ void MainWindow::populateAnalyticsTable() {
         return statsByExt[a].totalSize > statsByExt[b].totalSize;
     });
 
+    static QFileIconProvider tableIconProvider;
+
     m_analyticsTable->setRowCount(exts.size());
     int row = 0;
     for (const QString& ext : exts) {
         const ExtStats& s = statsByExt[ext];
-        m_analyticsTable->setItem(row, 0, new QTableWidgetItem(ext));
+
+        QTableWidgetItem* extItem = new QTableWidgetItem(ext);
+
+        // Use a representative dummy filename with this extension to get a
+        // realistic shell icon (e.g. "x.txt", "x.png").
+        QString sampleName = (ext == "(no extension)") ? QStringLiteral("file") : ("x" + ext);
+        QFileIconProvider::IconType fallbackType = QFileIconProvider::File;
+        QIcon icon = tableIconProvider.icon(QFileInfo(sampleName));
+        if (icon.isNull()) {
+            icon = tableIconProvider.icon(fallbackType);
+        }
+        extItem->setIcon(icon);
+
+        m_analyticsTable->setItem(row, 0, extItem);
         m_analyticsTable->setItem(row, 1, new QTableWidgetItem(QString::number(s.count)));
         m_analyticsTable->setItem(row, 2, new QTableWidgetItem(QString::number(s.totalSize)));
         row++;
     }
 }
+
+
+
+
+
+
+
+
+

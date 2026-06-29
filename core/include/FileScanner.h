@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <filesystem>
 #include <vector>
 #include <string>
@@ -21,8 +21,8 @@ class FileScanner {
 public:
     // Hard safety thresholds (Phase 2 anti-abuse rules)
     static constexpr int kMaxDepth = 25;
-    static constexpr size_t kMaxFiles = 2000;
-    static constexpr uint64_t kMaxTotalBytes = 500ull * 1024 * 1024; // 500 MB
+    static constexpr size_t kMaxFiles = SIZE_MAX; // effectively unbounded
+    static constexpr uint64_t kMaxTotalBytes = 20ull * 1024 * 1024 * 1024; // 20 GB
 
     // Returns false if validation fails; errorMsg is filled in.
     bool validateRoot(const std::filesystem::path& root, std::string& errorMsg);
