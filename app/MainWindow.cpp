@@ -8,6 +8,9 @@
 
 #include <QWidget>
 #include <QFontMetrics>
+#include <QSettings>
+#include <QToolButton>
+#include <QMenu>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLineEdit>
@@ -55,6 +58,10 @@ void MainWindow::setupUi() {
     rootRow->addWidget(m_rootFolderEdit);
     m_browseRootBtn = new QPushButton("Browse");
     rootRow->addWidget(m_browseRootBtn);
+    m_recentBtn = new QToolButton();
+    m_recentBtn->setText("Recent \xe2\x96\xbe");
+    m_recentBtn->setPopupMode(QToolButton::InstantPopup);
+    rootRow->addWidget(m_recentBtn);
     mainLayout->addLayout(rootRow);
 
     QHBoxLayout* saveRow = new QHBoxLayout();
@@ -150,6 +157,7 @@ void MainWindow::setupUi() {
 
     setCentralWidget(central);
 
+    rebuildRecentMenu();
     connect(m_browseRootBtn, &QPushButton::clicked, this, &MainWindow::onBrowseRootFolder);
     connect(m_browseSaveBtn, &QPushButton::clicked, this, &MainWindow::onBrowseSaveTarget);
     connect(m_scanBtn, &QPushButton::clicked, this, &MainWindow::onScanClicked);
@@ -318,6 +326,7 @@ void MainWindow::runScan(const QString& path) {
 
     m_smartFilterAttempted = false;
     m_lastScanResult = result;
+    saveRecentProject(QString::fromStdString(root.string()));
     populateTree();
     populateAnalyticsTable();
 
@@ -633,4 +642,42 @@ void MainWindow::populateAnalyticsTable() {
 
 
 
+
+
+
+
+
+QStringList MainWindow::loadRecentProjects() {
+    QSettings settings("FileFlattener", "FileFlattenerApp");
+    return settings.value("recentProjects").toStringList();
+}
+
+void MainWindow::saveRecentProject(const QString& path) {
+    if (path.trimmed().isEmpty()) return;
+    QSettings settings("FileFlattener", "FileFlattenerApp");
+    QStringList recents = settings.value("recentProjects").toStringList();
+    recents.removeAll(path);
+    recents.prepend(path);
+    while (recents.size() > 5) recents.removeLast();
+    settings.setValue("recentProjects", recents);
+    rebuildRecentMenu();
+}
+
+void MainWindow::rebuildRecentMenu() {
+    if (!m_recentBtn) return;
+    QStringList recents = loadRecentProjects();
+    QMenu* menu = new QMenu(m_recentBtn);
+    if (recents.isEmpty()) {
+        QAction* none = menu->addAction("No recent projects");
+        none->setEnabled(false);
+    } else {
+        for (const QString& path : recents) {
+            QAction* action = menu->addAction(path);
+            connect(action, &QAction::triggered, this, [this, path]() {
+                m_rootFolderEdit->setText(path);
+            });
+        }
+    }
+    m_recentBtn->setMenu(menu);
+}
 

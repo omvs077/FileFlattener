@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <QMainWindow>
+class QToolButton;
 #include "FileScanner.h"
 
 class QLineEdit;
@@ -53,6 +54,10 @@ private:
     QComboBox* m_presetCombo = nullptr;
     QLineEdit* m_filterRulesEdit = nullptr;
     bool m_smartFilterAttempted = false;
+    QToolButton* m_recentBtn = nullptr;
+    QStringList loadRecentProjects();
+    void saveRecentProject(const QString& path);
+    void rebuildRecentMenu();
     QPushButton* m_scanBtn = nullptr;
     QPushButton* m_expandAllBtn = nullptr;
     QPushButton* m_collapseAllBtn = nullptr;
@@ -70,6 +75,8 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
 };
+
+
 
 
 
