@@ -36,6 +36,7 @@ private slots:
     void onWorkerProgressChanged(int percent);
     void onWorkerFinishedSuccess(QString zipPath);
     void onWorkerFinishedError(QString errorMessage);
+    void onPresetChanged(int index);
 
 private:
     void setupUi();
@@ -68,6 +69,9 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
 };
+
+
+
 
 
 

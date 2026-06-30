@@ -2,9 +2,7 @@
 #include <minizip/zip.h>
 #include <fstream>
 #include <vector>
-
 namespace fs = std::filesystem;
-
 static bool writeMemoryEntry(zipFile zf, const std::string& entryName, const std::string& content, std::string& errorMsg) {
     int openResult = zipOpenNewFileInZip(
         zf, entryName.c_str(), nullptr, nullptr, 0, nullptr, 0, nullptr,
@@ -25,7 +23,6 @@ static bool writeMemoryEntry(zipFile zf, const std::string& entryName, const std
     zipCloseFileInZip(zf);
     return true;
 }
-
 bool ZipWriter::writeZip(
     const ScanResult& scan,
     const std::vector<FlattenedFile>& flattened,
@@ -40,7 +37,6 @@ bool ZipWriter::writeZip(
         errorMsg = "Failed to create ZIP file at: " + outputZipPath.string();
         return false;
     }
-
     if (!structureTextContent.empty()) {
         if (!writeMemoryEntry(zf, "structure.txt", structureTextContent, errorMsg)) {
             zipClose(zf, nullptr);
@@ -53,16 +49,12 @@ bool ZipWriter::writeZip(
             return false;
         }
     }
-
     constexpr size_t kChunkSize = 64 * 1024;
     std::vector<char> buffer(kChunkSize);
-
     uint64_t totalBytes = scan.totalSizeBytes;
     uint64_t bytesWritten = 0;
-
     for (const auto& ff : flattened) {
         const ScannedFile& src = scan.files[ff.originalIndex];
-
         int openResult = zipOpenNewFileInZip(
             zf, ff.flattenedName.c_str(), nullptr, nullptr, 0, nullptr, 0, nullptr,
             Z_DEFLATED, Z_DEFAULT_COMPRESSION
@@ -72,7 +64,6 @@ bool ZipWriter::writeZip(
             zipClose(zf, nullptr);
             return false;
         }
-
         std::ifstream in(src.absolutePath, std::ios::binary);
         if (!in) {
             errorMsg = "Failed to open source file for reading: " + src.absolutePath.string();
@@ -80,7 +71,6 @@ bool ZipWriter::writeZip(
             zipClose(zf, nullptr);
             return false;
         }
-
         while (in.read(buffer.data(), kChunkSize) || in.gcount() > 0) {
             std::streamsize bytesRead = in.gcount();
             if (bytesRead > 0) {
@@ -92,14 +82,12 @@ bool ZipWriter::writeZip(
                     return false;
                 }
                 bytesWritten += static_cast<uint64_t>(bytesRead);
-                if (onProgress) onProgress(bytesWritten, totalBytes);
+                if (onProgress) onProgress(bytesWritten, totalBytes, ff.flattenedName);
             }
             if (in.eof()) break;
         }
-
         zipCloseFileInZip(zf);
     }
-
     zipClose(zf, nullptr);
     return true;
 }

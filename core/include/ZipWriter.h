@@ -4,10 +4,8 @@
 #include <vector>
 #include <string>
 #include <functional>
-
-// progress(bytesWrittenSoFar, totalBytes)
-using ZipProgressCallback = std::function<void(uint64_t, uint64_t)>;
-
+// progress(bytesWrittenSoFar, totalBytes, currentFileName)
+using ZipProgressCallback = std::function<void(uint64_t, uint64_t, const std::string&)>;
 class ZipWriter {
 public:
     bool writeZip(

@@ -7,6 +7,7 @@
 #include "FlattenWorker.h"
 
 #include <QWidget>
+#include <QFontMetrics>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLineEdit>
@@ -73,6 +74,7 @@ void MainWindow::setupUi() {
     m_presetCombo->addItem("Media Only");
     m_presetCombo->addItem("Documents Only");
     presetRow->addWidget(m_presetCombo);
+    connect(m_presetCombo, &QComboBox::currentIndexChanged, this, &MainWindow::onPresetChanged);
     m_scanBtn = new QPushButton("Scan");
     presetRow->addWidget(m_scanBtn);
     mainLayout->addLayout(presetRow);
@@ -330,6 +332,8 @@ void MainWindow::onFlattenZipClicked() {
     m_progressDialog->setWindowTitle("Exporting");
     m_progressDialog->setWindowModality(Qt::WindowModal);
     m_progressDialog->setMinimumDuration(0);
+    m_progressDialog->setMinimumWidth(500);
+    m_progressDialog->setFixedSize(m_progressDialog->sizeHint().expandedTo(QSize(500, 0)));
     m_progressDialog->setValue(0);
 
     m_workerThread = new QThread(this);
@@ -337,6 +341,13 @@ void MainWindow::onFlattenZipClicked() {
     m_worker->moveToThread(m_workerThread);
 
     connect(m_workerThread, &QThread::started, m_worker, &FlattenWorker::run);
+    connect(m_worker, &FlattenWorker::currentFile, this, [this](const QString& fname) {
+        if (m_progressDialog) {
+            QFontMetrics fm(m_progressDialog->font());
+            QString elided = fm.elidedText("Zipping: " + fname, Qt::ElideMiddle, 460);
+            m_progressDialog->setLabelText(elided);
+        }
+    });
 
     connect(m_worker, &FlattenWorker::stageChanged, this, &MainWindow::onWorkerStageChanged);
     connect(m_worker, &FlattenWorker::progressChanged, this, &MainWindow::onWorkerProgressChanged);
@@ -350,6 +361,27 @@ void MainWindow::onFlattenZipClicked() {
 
     m_workerThread->start();
     m_progressDialog->show();
+}
+
+void MainWindow::onPresetChanged(int index) {
+    QString defaults;
+    switch (index) {
+        case 0: // Standard Backup
+            defaults = ".git, node_modules, build, *.log";
+            break;
+        case 1: // AI-Ready Source Only
+            defaults = ".git, node_modules, build, target, .venv, dist, *.exe, *.dll, *.bin, *.png, *.jpg, *.jpeg, *.mp4, *.zip";
+            break;
+        case 2: // Media Only
+            defaults = ".git, node_modules, build, *.txt, *.md, *.json, *.py, *.cpp, *.h, *.cs, *.js, *.ts";
+            break;
+        case 3: // Documents Only
+            defaults = ".git, node_modules, build, *.exe, *.dll, *.bin, *.mp4, *.mp3, *.png, *.jpg, *.jpeg, *.zip";
+            break;
+        default:
+            return;
+    }
+    if (m_filterRulesEdit) m_filterRulesEdit->setText(defaults);
 }
 
 void MainWindow::onWorkerStageChanged(QString stage) {
@@ -532,6 +564,17 @@ void MainWindow::populateAnalyticsTable() {
         row++;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

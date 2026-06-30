@@ -71,6 +71,13 @@ PreviewDialog::PreviewDialog(
     QFrame* line3 = new QFrame();
     line3->setFrameShape(QFrame::HLine);
     layout->addWidget(line3);
+    QLabel* warningLabel = new QLabel(
+        "<b>Note:</b> Once export starts, it cannot be cancelled. "
+        "Please confirm the details above before proceeding."
+    );
+    warningLabel->setWordWrap(true);
+    warningLabel->setStyleSheet("color: #b35900;");
+    layout->addWidget(warningLabel);
 
     QHBoxLayout* buttonRow = new QHBoxLayout();
     QPushButton* cancelBtn = new QPushButton("Cancel");
@@ -85,5 +92,8 @@ PreviewDialog::PreviewDialog(
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
     connect(confirmBtn, &QPushButton::clicked, this, &QDialog::accept);
 }
+
+
+
 
 
