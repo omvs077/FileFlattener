@@ -46,8 +46,7 @@ cd build\Debug
 A headless CLI test harness (`FileFlattenerCLI`) is also available for scripted/automated testing of the core engine without the GUI.
 
 ## Project Structure
-'''
-FileFlattener/
+'''FileFlattener/
 ├── core/    — Static library: FileScanner, Deduplicator, Renamer, ZipWriter, StructureExporter, FilterEngine
 ├── app/     — Qt GUI (MainWindow, PreviewDialog, FlattenWorker) + CLI harness
 '''
