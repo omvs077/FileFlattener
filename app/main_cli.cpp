@@ -3,10 +3,29 @@
 #include "Deduplicator.h"
 #include "Renamer.h"
 #include "ZipWriter.h"
+#include "GraphModel.h"
+
+namespace {
+void printGraphSummary(const ScanResult& result) {
+    GraphModel model = GraphBuilder::build(result);
+    int maxDepth = 0;
+    int folderCount = 0;
+    int fileCount = 0;
+    for (const auto& n : model.nodes) {
+        if (n.depth > maxDepth) maxDepth = n.depth;
+        if (n.isDirectory) ++folderCount; else ++fileCount;
+    }
+    std::cout << "\n[GraphModel] nodes: " << model.nodes.size()
+              << " (folders: " << folderCount << ", files: " << fileCount << ")\n";
+    std::cout << "[GraphModel] max depth: " << maxDepth << "\n";
+    std::cout << "[GraphModel] root size (bytes): " << model.nodes[0].sizeBytes << "\n";
+}
+}
 
 int main(int argc, char* argv[]) {
     std::filesystem::path root = (argc > 1) ? argv[1] : "D:/My projects/FileFlattener/testdata";
     std::filesystem::path outputZip = (argc > 2) ? argv[2] : "D:/My projects/FileFlattener/output.zip";
+    bool graphOnly = (argc > 3) && std::string(argv[3]) == "--graph";
 
     FileScanner scanner;
     std::string err;
@@ -22,6 +41,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     std::cout << "Scan complete. Total files: " << result.files.size() << "\n";
+
+    if (graphOnly) {
+        printGraphSummary(result);
+        return 0;
+    }
 
     Deduplicator dedup;
     DedupResult dedupResult;
@@ -43,6 +67,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "\nZIP created successfully at: " << outputZip.string() << "\n";
+
+    printGraphSummary(result);
     return 0;
 }
-

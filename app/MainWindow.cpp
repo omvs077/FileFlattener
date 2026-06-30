@@ -5,6 +5,8 @@
 #include "PreviewDialog.h"
 #include "StructureExporter.h"
 #include "FlattenWorker.h"
+#include "GraphView.h"
+#include <QTabWidget>
 
 #include <QWidget>
 #include <QFontMetrics>
@@ -131,7 +133,11 @@ void MainWindow::setupUi() {
     splitter->setStretchFactor(0, 2);
     splitter->setStretchFactor(1, 1);
 
-    mainLayout->addWidget(splitter, 1);
+    QTabWidget* tabs = new QTabWidget();
+    tabs->addTab(splitter, "Files");
+    m_graphView = new GraphView();
+    tabs->addTab(m_graphView, "Folder Graph");
+    mainLayout->addWidget(tabs, 1);
 
     m_statusLabel = new QLabel("Ready. Select a folder and click Scan.");
     mainLayout->addWidget(m_statusLabel);
@@ -339,6 +345,7 @@ void MainWindow::runScan(const QString& path) {
 
     m_smartFilterAttempted = false;
     m_lastScanResult = result;
+    if (m_graphView) m_graphView->setGraphModel(GraphBuilder::build(result));
     saveRecentProject(QString::fromStdString(root.string()));
     populateTree();
     populateAnalyticsTable();

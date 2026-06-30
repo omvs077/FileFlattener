@@ -24,6 +24,8 @@ add_executable(FileFlattenerApp
     app/include/PreviewDialog.h
     app/FlattenWorker.cpp
     app/include/FlattenWorker.h
+    app/GraphView.cpp
+    app/include/GraphView.h
 )
 target_include_directories(FileFlattenerApp PRIVATE app/include)
 target_link_libraries(FileFlattenerApp PRIVATE FileFlattenerCore Qt6::Widgets)

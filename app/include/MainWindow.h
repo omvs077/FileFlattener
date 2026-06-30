@@ -12,6 +12,7 @@ class QLabel;
 class QThread;
 class QProgressDialog;
 class FlattenWorker;
+class GraphView;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -74,6 +75,7 @@ private:
     QThread* m_workerThread = nullptr;
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
+    GraphView* m_graphView = nullptr;
 };
 
 
