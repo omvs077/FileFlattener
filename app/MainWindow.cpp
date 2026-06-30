@@ -11,6 +11,7 @@
 #include <QSettings>
 #include <QToolButton>
 #include <QMenu>
+#include <QStatusBar>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLineEdit>
@@ -158,6 +159,18 @@ void MainWindow::setupUi() {
     setCentralWidget(central);
 
     rebuildRecentMenu();
+
+    QLabel* creditLabel = new QLabel(
+        "Crafted by <b>Dvvyom</b> &nbsp;|&nbsp; "
+        "<a href=\"https://github.com/omvs077\" style=\"color:#2f6fed; font-weight:bold; text-decoration:underline;\">GitHub</a> &nbsp;|&nbsp; "
+        "<a href=\"mailto:omvs077@gmail.com\" style=\"color:#2f6fed; font-weight:bold; text-decoration:underline;\">omvs077@gmail.com</a> "
+        "&nbsp;&mdash;&nbsp; suggestions/feedback welcome"
+    );
+    creditLabel->setOpenExternalLinks(true);
+    creditLabel->setStyleSheet("color: #444; font-size: 11px;");
+    statusBar()->setStyleSheet("border-top: 1px solid #ccc; padding: 2px 4px;");
+    statusBar()->addPermanentWidget(creditLabel);
+    statusBar()->setSizeGripEnabled(false);
     connect(m_browseRootBtn, &QPushButton::clicked, this, &MainWindow::onBrowseRootFolder);
     connect(m_browseSaveBtn, &QPushButton::clicked, this, &MainWindow::onBrowseSaveTarget);
     connect(m_scanBtn, &QPushButton::clicked, this, &MainWindow::onScanClicked);
@@ -680,4 +693,10 @@ void MainWindow::rebuildRecentMenu() {
     }
     m_recentBtn->setMenu(menu);
 }
+
+
+
+
+
+
 

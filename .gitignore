@@ -3,3 +3,11 @@ build/
 .vs/
 *.user
 CMakeUserPresets.json
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.zip
+vcpkg_installed/
+.idea/
+*.suo
