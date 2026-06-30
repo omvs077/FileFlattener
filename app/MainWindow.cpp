@@ -274,10 +274,49 @@ void MainWindow::runScan(const QString& path) {
 
     ScanResult result;
     if (!scanner.scan(root, result, err, &filter)) {
-        m_statusLabel->setText(QString("Scan failed: %1").arg(QString::fromStdString(err)));
+        QString qerr = QString::fromStdString(err);
+        if (qerr.contains("exceeds limit", Qt::CaseInsensitive)) {
+            QMessageBox box(this);
+            box.setWindowTitle("Folder Too Large");
+            box.setIcon(QMessageBox::Warning);
+            if (!m_smartFilterAttempted) {
+                box.setText("This folder exceeds the 20GB scan limit.");
+                box.setInformativeText(
+                    "Common heavy folders like node_modules, build, .venv, and target "
+                    "are often safe to exclude. Add them to Filter Rules and re-scan?"
+                );
+                QPushButton* addBtn = box.addButton("Add Excludes && Re-scan", QMessageBox::AcceptRole);
+                box.addButton("Cancel", QMessageBox::RejectRole);
+                box.exec();
+                if (box.clickedButton() == addBtn) {
+                    m_smartFilterAttempted = true;
+                    QString current = m_filterRulesEdit->text().trimmed();
+                    QStringList toAdd = { "node_modules", "build", ".venv", "target" };
+                    QStringList existing = current.split(",", Qt::SkipEmptyParts);
+                    for (QString& s : existing) s = s.trimmed();
+                    for (const QString& rule : toAdd) {
+                        if (!existing.contains(rule, Qt::CaseInsensitive)) existing << rule;
+                    }
+                    m_filterRulesEdit->setText(existing.join(", "));
+                    onScanClicked();
+                    return;
+                }
+            } else {
+                box.setText("This folder still exceeds the 20GB scan limit.");
+                box.setInformativeText(
+                    "The common excludes (node_modules, build, .venv, target) did not reduce it enough. "
+                    "Try manually adding more excludes in Filter Rules (e.g. large media subfolders) and scan again."
+                );
+                box.addButton("OK", QMessageBox::AcceptRole);
+                box.exec();
+                m_smartFilterAttempted = false;
+            }
+        }
+        m_statusLabel->setText(QString("Scan failed: %1").arg(qerr));
         return;
     }
 
+    m_smartFilterAttempted = false;
     m_lastScanResult = result;
     populateTree();
     populateAnalyticsTable();
@@ -564,6 +603,10 @@ void MainWindow::populateAnalyticsTable() {
         row++;
     }
 }
+
+
+
+
 
 
 

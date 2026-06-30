@@ -52,6 +52,7 @@ private:
 
     QComboBox* m_presetCombo = nullptr;
     QLineEdit* m_filterRulesEdit = nullptr;
+    bool m_smartFilterAttempted = false;
     QPushButton* m_scanBtn = nullptr;
     QPushButton* m_expandAllBtn = nullptr;
     QPushButton* m_collapseAllBtn = nullptr;
@@ -69,6 +70,7 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
 };
+
 
 
 
