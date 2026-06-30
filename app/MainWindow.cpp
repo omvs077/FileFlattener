@@ -83,6 +83,27 @@ void MainWindow::setupUi() {
     filterRow->addWidget(m_filterRulesEdit);
     mainLayout->addLayout(filterRow);
 
+    QHBoxLayout* treeToolbarRow = new QHBoxLayout();
+    m_expandAllBtn = new QPushButton("Expand All");
+    m_collapseAllBtn = new QPushButton("Collapse All");
+    treeToolbarRow->addWidget(m_expandAllBtn);
+    treeToolbarRow->addWidget(m_collapseAllBtn);
+
+    m_treeSearchEdit = new QLineEdit();
+    m_treeSearchEdit->setPlaceholderText("Search files...");
+    m_treeSearchEdit->setMaximumWidth(220);
+    treeToolbarRow->addWidget(m_treeSearchEdit);
+
+    m_treeSortCombo = new QComboBox();
+    m_treeSortCombo->addItem("Name (A-Z)");
+    m_treeSortCombo->addItem("Name (Z-A)");
+    m_treeSortCombo->addItem("Size (Largest first)");
+    m_treeSortCombo->addItem("Size (Smallest first)");
+    treeToolbarRow->addWidget(m_treeSortCombo);
+
+    treeToolbarRow->addStretch();
+    mainLayout->addLayout(treeToolbarRow);
+
     QSplitter* splitter = new QSplitter(Qt::Horizontal);
 
     m_treeWidget = new QTreeWidget();
@@ -109,6 +130,19 @@ void MainWindow::setupUi() {
     actionRow->addStretch();
     m_flattenZipBtn = new QPushButton("FLATTEN && ZIP");
     m_flattenZipBtn->setMinimumHeight(36);
+    m_flattenZipBtn->setMinimumWidth(180);
+    m_flattenZipBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #2e7d32;"
+        "  color: white;"
+        "  font-weight: bold;"
+        "  border-radius: 4px;"
+        "  border: none;"
+        "}"
+        "QPushButton:hover { background-color: #388e3c; }"
+        "QPushButton:pressed { background-color: #1b5e20; }"
+        "QPushButton:disabled { background-color: #9e9e9e; }"
+    );
     actionRow->addWidget(m_flattenZipBtn);
     mainLayout->addLayout(actionRow);
 
@@ -118,6 +152,10 @@ void MainWindow::setupUi() {
     connect(m_browseSaveBtn, &QPushButton::clicked, this, &MainWindow::onBrowseSaveTarget);
     connect(m_scanBtn, &QPushButton::clicked, this, &MainWindow::onScanClicked);
     connect(m_flattenZipBtn, &QPushButton::clicked, this, &MainWindow::onFlattenZipClicked);
+    connect(m_expandAllBtn, &QPushButton::clicked, this, &MainWindow::onExpandAllClicked);
+    connect(m_collapseAllBtn, &QPushButton::clicked, this, &MainWindow::onCollapseAllClicked);
+    connect(m_treeSearchEdit, &QLineEdit::textChanged, this, &MainWindow::onTreeSearchTextChanged);
+    connect(m_treeSortCombo, &QComboBox::currentIndexChanged, this, &MainWindow::onTreeSortChanged);
 }
 
 void MainWindow::onBrowseRootFolder() {
@@ -141,6 +179,47 @@ void MainWindow::onBrowseSaveTarget() {
 
 void MainWindow::onScanClicked() {
     runScan(m_rootFolderEdit->text());
+}
+
+void MainWindow::onExpandAllClicked() {
+    m_treeWidget->expandAll();
+}
+
+void MainWindow::onCollapseAllClicked() {
+    m_treeWidget->collapseAll();
+}
+
+static bool filterTreeItemRecursive(QTreeWidgetItem* item, const QString& searchText) {
+    bool anyChildVisible = false;
+    for (int i = 0; i < item->childCount(); ++i) {
+        if (filterTreeItemRecursive(item->child(i), searchText)) {
+            anyChildVisible = true;
+        }
+    }
+
+    bool selfMatches = searchText.isEmpty() ||
+        item->text(0).contains(searchText, Qt::CaseInsensitive);
+
+    bool isLeaf = (item->childCount() == 0);
+    bool visible = anyChildVisible || (isLeaf && selfMatches) || (!isLeaf && selfMatches);
+
+    item->setHidden(!visible);
+    return visible;
+}
+
+void MainWindow::onTreeSearchTextChanged(const QString& text) {
+    for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
+        filterTreeItemRecursive(m_treeWidget->topLevelItem(i), text);
+    }
+    if (!text.isEmpty()) {
+        m_treeWidget->expandAll();
+    }
+}
+
+void MainWindow::onTreeSortChanged(int index) {
+    Q_UNUSED(index);
+    populateTree();
+    onTreeSearchTextChanged(m_treeSearchEdit->text());
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -181,8 +260,18 @@ void MainWindow::runScan(const QString& path) {
         return;
     }
 
+    PresetType preset = PresetType::StandardBackup;
+    switch (m_presetCombo->currentIndex()) {
+        case 0: preset = PresetType::StandardBackup; break;
+        case 1: preset = PresetType::AiReadySourceOnly; break;
+        case 2: preset = PresetType::MediaOnly; break;
+        case 3: preset = PresetType::DocumentsOnly; break;
+    }
+
+    FilterEngine filter(m_filterRulesEdit->text().toStdString(), preset);
+
     ScanResult result;
-    if (!scanner.scan(root, result, err)) {
+    if (!scanner.scan(root, result, err, &filter)) {
         m_statusLabel->setText(QString("Scan failed: %1").arg(QString::fromStdString(err)));
         return;
     }
@@ -191,10 +280,11 @@ void MainWindow::runScan(const QString& path) {
     populateTree();
     populateAnalyticsTable();
 
-    m_statusLabel->setText(QString("Scan complete. %1 files, %2 directories, %3 bytes total.")
+    m_statusLabel->setText(QString("Scan complete. %1 files, %2 directories, %3 bytes total. (%4 excluded by filters)")
         .arg(result.files.size())
         .arg(result.totalDirectories)
-        .arg(result.totalSizeBytes));
+        .arg(result.totalSizeBytes)
+        .arg(result.filteredOutCount));
 }
 
 void MainWindow::onFlattenZipClicked() {
@@ -311,6 +401,31 @@ void MainWindow::populateTree() {
     QMap<QString, QTreeWidgetItem*> folderItems;
     static QFileIconProvider iconProvider;
 
+    std::vector<ScannedFile> sortedFiles = m_lastScanResult.files;
+    int sortMode = m_treeSortCombo ? m_treeSortCombo->currentIndex() : 0;
+    switch (sortMode) {
+        case 0: // Name A-Z
+            std::sort(sortedFiles.begin(), sortedFiles.end(), [](const ScannedFile& a, const ScannedFile& b) {
+                return a.relativePath.filename().string() < b.relativePath.filename().string();
+            });
+            break;
+        case 1: // Name Z-A
+            std::sort(sortedFiles.begin(), sortedFiles.end(), [](const ScannedFile& a, const ScannedFile& b) {
+                return a.relativePath.filename().string() > b.relativePath.filename().string();
+            });
+            break;
+        case 2: // Size largest first
+            std::sort(sortedFiles.begin(), sortedFiles.end(), [](const ScannedFile& a, const ScannedFile& b) {
+                return a.sizeBytes > b.sizeBytes;
+            });
+            break;
+        case 3: // Size smallest first
+            std::sort(sortedFiles.begin(), sortedFiles.end(), [](const ScannedFile& a, const ScannedFile& b) {
+                return a.sizeBytes < b.sizeBytes;
+            });
+            break;
+    }
+
     auto getOrCreateFolder = [&](const QStringList& segments) -> QTreeWidgetItem* {
         QTreeWidgetItem* current = nullptr;
         QString accumulated;
@@ -340,7 +455,7 @@ void MainWindow::populateTree() {
         return current;
     };
 
-    for (const auto& file : m_lastScanResult.files) {
+    for (const auto& file : sortedFiles) {
         QString relPathStr = QString::fromStdString(file.relativePath.string());
         QStringList allSegments = splitPathSegments(relPathStr);
 
@@ -356,7 +471,12 @@ void MainWindow::populateTree() {
         QTreeWidgetItem* fileItem = new QTreeWidgetItem();
         fileItem->setText(0, fileName);
         fileItem->setText(1, QString::number(file.sizeBytes));
-        fileItem->setIcon(0, iconProvider.icon(QFileIconProvider::File));
+
+        QIcon fileIcon = iconProvider.icon(QFileInfo(fileName));
+        if (fileIcon.isNull()) {
+            fileIcon = iconProvider.icon(QFileIconProvider::File);
+        }
+        fileItem->setIcon(0, fileIcon);
 
         if (parentItem) {
             parentItem->addChild(fileItem);
@@ -412,6 +532,18 @@ void MainWindow::populateAnalyticsTable() {
         row++;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

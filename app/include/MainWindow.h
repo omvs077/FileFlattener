@@ -26,6 +26,10 @@ private slots:
     void onBrowseRootFolder();
     void onBrowseSaveTarget();
     void onScanClicked();
+    void onExpandAllClicked();
+    void onCollapseAllClicked();
+    void onTreeSearchTextChanged(const QString& text);
+    void onTreeSortChanged(int index);
     void onFlattenZipClicked();
 
     void onWorkerStageChanged(QString stage);
@@ -48,6 +52,10 @@ private:
     QComboBox* m_presetCombo = nullptr;
     QLineEdit* m_filterRulesEdit = nullptr;
     QPushButton* m_scanBtn = nullptr;
+    QPushButton* m_expandAllBtn = nullptr;
+    QPushButton* m_collapseAllBtn = nullptr;
+    QLineEdit* m_treeSearchEdit = nullptr;
+    QComboBox* m_treeSortCombo = nullptr;
     QPushButton* m_flattenZipBtn = nullptr;
 
     QTreeWidget* m_treeWidget = nullptr;
@@ -60,3 +68,7 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
 };
+
+
+
+
