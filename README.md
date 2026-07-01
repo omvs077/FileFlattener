@@ -19,10 +19,6 @@ Crafted by **Dvvyom** — [GitHub](https://github.com/omvs077) | [omvs077@gmail.
 - **Recent Projects** — quick access to your last 5 scanned folders, persisted across sessions
 - **Self-documenting ZIPs** — every export includes a `structure.txt` (ASCII tree) and `manifest.json`
 
-## Download
-
-Grab the latest prebuilt Windows executable from the [Releases](https://github.com/omvs077/FileFlattener/releases) page (tag `v1.0.0`). No installation required — just run `FileFlattenerApp.exe`.
-
 ## Building from Source
 
 **Requirements:**
