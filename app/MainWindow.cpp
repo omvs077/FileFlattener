@@ -135,8 +135,23 @@ void MainWindow::setupUi() {
 
     QTabWidget* tabs = new QTabWidget();
     tabs->addTab(splitter, "Files");
+    QWidget* graphTab = new QWidget();
+    QVBoxLayout* graphLayout = new QVBoxLayout(graphTab);
+    graphLayout->setContentsMargins(0,0,0,0);
+    QHBoxLayout* graphToolbar = new QHBoxLayout();
+    QPushButton* generateGraphBtn = new QPushButton("Generate Folder Graph");
+    generateGraphBtn->setMinimumHeight(30);
+    generateGraphBtn->setStyleSheet("QPushButton { background-color: #1565c0; color: white; font-weight: bold; border-radius: 4px; border: none; padding: 0 12px; } QPushButton:hover { background-color: #1976d2; } QPushButton:disabled { background-color: #9e9e9e; }");
+    graphToolbar->addWidget(generateGraphBtn);
+    m_graphStatusLabel = new QLabel("Scan a folder, then click Generate Folder Graph.");
+    m_graphStatusLabel->setStyleSheet("color: #555; padding-left: 8px;");
+    graphToolbar->addWidget(m_graphStatusLabel);
+    graphToolbar->addStretch();
+    graphLayout->addLayout(graphToolbar);
     m_graphView = new GraphView();
-    tabs->addTab(m_graphView, "Folder Graph");
+    graphLayout->addWidget(m_graphView, 1);
+    connect(generateGraphBtn, &QPushButton::clicked, this, &MainWindow::onGenerateGraphClicked);
+    tabs->addTab(graphTab, "Folder Graph");
     mainLayout->addWidget(tabs, 1);
 
     m_statusLabel = new QLabel("Ready. Select a folder and click Scan.");
@@ -358,7 +373,6 @@ void MainWindow::runScan(const QString& path) {
 
     m_smartFilterAttempted = false;
     m_lastScanResult = result;
-    if (m_graphView) m_graphView->setGraphModel(GraphBuilder::build(result));
     saveRecentProject(QString::fromStdString(root.string()));
     populateTree();
     populateAnalyticsTable();
@@ -743,4 +757,33 @@ void MainWindow::onExportStructureClicked() {
     file.write(QByteArray::fromStdString(text));
     file.close();
     m_statusLabel->setText("Folder structure exported to: " + savePath);
+}
+
+void MainWindow::onGenerateGraphClicked() {
+    if (m_lastScanResult.files.empty()) {
+        m_graphStatusLabel->setText("No scan data. Please scan a folder first.");
+        return;
+    }
+
+    // Build a temporary model to count nodes before committing to render.
+    GraphModel model = GraphBuilder::build(m_lastScanResult);
+    int total = static_cast<int>(model.nodes.size());
+    int folders = 0;
+    for (const auto& n : model.nodes) if (n.isDirectory) ++folders;
+
+    if (total > 800) {
+        m_graphStatusLabel->setText(
+            QString("Too large to visualize (%1 nodes). Use Export Folder Structure for a text view.").arg(total));
+        return;
+    }
+
+    QString mode;
+    if (total > 400) {
+        mode = QString(" (folder-only mode, %1 folders)").arg(folders);
+    } else {
+        mode = QString(" (%1 nodes)").arg(total);
+    }
+    m_graphStatusLabel->setText("Generating graph" + mode + "...");
+    m_graphView->setGraphModel(model);
+    m_graphStatusLabel->setText("Graph ready" + mode + ". Drag nodes, scroll to zoom, right-click to pan.");
 }

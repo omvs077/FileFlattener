@@ -34,6 +34,7 @@ private slots:
     void onTreeSortChanged(int index);
     void onFlattenZipClicked();
     void onExportStructureClicked();
+    void onGenerateGraphClicked();
 
     void onWorkerStageChanged(QString stage);
     void onWorkerProgressChanged(int percent);
@@ -77,6 +78,7 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
     GraphView* m_graphView = nullptr;
+    QLabel* m_graphStatusLabel = nullptr;
 };
 
 

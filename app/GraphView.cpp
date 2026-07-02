@@ -317,10 +317,27 @@ void GraphView::layoutAndRender() {
     m_tickCount = 0; m_timer->stop();
     if (m_model.nodes.empty()) return;
 
+    // Auto-collapse folders with more than 8 direct children.
+    for (const auto& n : m_model.nodes) {
+        if (n.isDirectory && (int)n.childIds.size() > 8)
+            m_collapsed.insert(n.id);
+    }
+
+    // Node cap: folder-only above 400, message above 2000.
+    const int totalNodes = static_cast<int>(m_model.nodes.size());
+    bool folderOnlyMode = false;
+    if (totalNodes > 2000) {
+        m_scene->addText("Folder too large to visualize (>2000 nodes).\nUse \"Export Folder Structure\" for a text view.");
+        return;
+    } else if (totalNodes > 400) {
+        folderOnlyMode = true;
+    }
+
     // First pass: create NodeItems so computeSubtreeLayout can read nodeW().
     m_nodeItems.assign(m_model.nodes.size(), nullptr);
     for (const auto& n : m_model.nodes) {
         QString label = QString::fromStdString(n.name.empty() ? "(root)" : n.name);
+        if (folderOnlyMode && !n.isDirectory) continue;
         auto* item = new NodeItem(n.id, n.isDirectory, n.id==0, label);
         m_nodeItems[n.id] = item;
     }
