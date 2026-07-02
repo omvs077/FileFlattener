@@ -159,6 +159,17 @@ void MainWindow::setupUi() {
         "QPushButton:pressed { background-color: #1b5e20; }"
         "QPushButton:disabled { background-color: #9e9e9e; }"
     );
+    QPushButton* m_exportStructureBtn = new QPushButton("Export Folder Structure");
+    m_exportStructureBtn->setMinimumHeight(36);
+    m_exportStructureBtn->setMinimumWidth(180);
+    m_exportStructureBtn->setStyleSheet(
+        "QPushButton { background-color: #1565c0; color: white; font-weight: bold; border-radius: 4px; border: none; }"
+        "QPushButton:hover { background-color: #1976d2; }"
+        "QPushButton:pressed { background-color: #0d47a1; }"
+        "QPushButton:disabled { background-color: #9e9e9e; }"
+    );
+    actionRow->addWidget(m_exportStructureBtn);
+    connect(m_exportStructureBtn, &QPushButton::clicked, this, &MainWindow::onExportStructureClicked);
     actionRow->addWidget(m_flattenZipBtn);
     mainLayout->addLayout(actionRow);
 
@@ -212,10 +223,12 @@ void MainWindow::onScanClicked() {
 
 void MainWindow::onExpandAllClicked() {
     m_treeWidget->expandAll();
+    if (m_graphView) m_graphView->expandAll();
 }
 
 void MainWindow::onCollapseAllClicked() {
     m_treeWidget->collapseAll();
+    if (m_graphView) m_graphView->collapseAll();
 }
 
 static bool filterTreeItemRecursive(QTreeWidgetItem* item, const QString& searchText) {
@@ -586,6 +599,7 @@ void MainWindow::populateTree() {
     }
 
     m_treeWidget->expandAll();
+    if (m_graphView) m_graphView->expandAll();
 }
 
 void MainWindow::populateAnalyticsTable() {
@@ -707,3 +721,26 @@ void MainWindow::rebuildRecentMenu() {
 
 
 
+
+void MainWindow::onExportStructureClicked() {
+    if (m_lastScanResult.files.empty()) {
+        QMessageBox::warning(this, "No Scan Data", "Please scan a folder first.");
+        return;
+    }
+    QString savePath = QFileDialog::getSaveFileName(
+        this, "Export Folder Structure", "folder_structure.txt",
+        "Text Files (*.txt);;All Files (*)");
+    if (savePath.isEmpty()) return;
+
+    std::string projectName = m_rootFolderEdit->text().toStdString();
+    std::string text = StructureExporter::buildStructureText(m_lastScanResult, projectName);
+
+    QFile file(savePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Could not write file: " + savePath);
+        return;
+    }
+    file.write(QByteArray::fromStdString(text));
+    file.close();
+    m_statusLabel->setText("Folder structure exported to: " + savePath);
+}

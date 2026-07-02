@@ -33,6 +33,7 @@ private slots:
     void onTreeSearchTextChanged(const QString& text);
     void onTreeSortChanged(int index);
     void onFlattenZipClicked();
+    void onExportStructureClicked();
 
     void onWorkerStageChanged(QString stage);
     void onWorkerProgressChanged(int percent);
