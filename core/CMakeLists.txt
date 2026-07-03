@@ -6,6 +6,7 @@
     src/StructureExporter.cpp
     src/FilterEngine.cpp
     src/GraphModel.cpp
+    src/ProjectDetector.cpp
 )
 
 set_target_properties(FileFlattenerCore PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)

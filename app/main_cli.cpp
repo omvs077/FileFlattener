@@ -4,6 +4,7 @@
 #include "Renamer.h"
 #include "ZipWriter.h"
 #include "GraphModel.h"
+#include "ProjectDetector.h"
 
 namespace {
 void printGraphSummary(const ScanResult& result) {
@@ -41,6 +42,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     std::cout << "Scan complete. Total files: " << result.files.size() << "\n";
+
+    ProjectDetectionResult detection = ProjectDetector::detect(root);
+    if (detection.isCodeProject) {
+        std::cout << "[ProjectDetector] Type: " << detection.displayName << "\n";
+        std::cout << "[ProjectDetector] Marker: " << detection.detectedMarker << "\n";
+    } else {
+        std::cout << "[ProjectDetector] Not a recognized code project.\n";
+    }
 
     if (graphOnly) {
         printGraphSummary(result);
