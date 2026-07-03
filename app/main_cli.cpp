@@ -5,6 +5,7 @@
 #include "ZipWriter.h"
 #include "GraphModel.h"
 #include "ProjectDetector.h"
+#include "CodeLexer.h"
 
 namespace {
 void printGraphSummary(const ScanResult& result) {
@@ -27,6 +28,7 @@ int main(int argc, char* argv[]) {
     std::filesystem::path root = (argc > 1) ? argv[1] : "D:/My projects/FileFlattener/testdata";
     std::filesystem::path outputZip = (argc > 2) ? argv[2] : "D:/My projects/FileFlattener/output.zip";
     bool graphOnly = (argc > 3) && std::string(argv[3]) == "--graph";
+    bool codeOnly  = (argc > 3) && std::string(argv[3]) == "--code";
 
     FileScanner scanner;
     std::string err;
@@ -51,6 +53,28 @@ int main(int argc, char* argv[]) {
         std::cout << "[ProjectDetector] Not a recognized code project.\n";
     }
 
+    if (codeOnly) {
+        std::vector<std::filesystem::path> sources;
+        for (const auto& f : result.files) sources.push_back(f.absolutePath);
+        CodeGraph cg = CodeLexer::analyze(root, sources);
+        int files=0, classes=0, methods=0;
+        for (const auto& n : cg.nodes) {
+            if (n.type==CodeNodeType::File) ++files;
+            else if (n.type==CodeNodeType::Class||n.type==CodeNodeType::Struct) ++classes;
+            else ++methods;
+        }
+        int includes=0, inherits=0;
+        for (const auto& e : cg.edges) {
+            if (e.type==CodeEdgeType::Includes) ++includes;
+            else if (e.type==CodeEdgeType::Inherits) ++inherits;
+        }
+        std::cout << "\n[CodeLexer] file nodes: " << files << "\n";
+        std::cout << "[CodeLexer] classes/structs: " << classes << "\n";
+        std::cout << "[CodeLexer] methods/functions: " << methods << "\n";
+        std::cout << "[CodeLexer] #include edges: " << includes << "\n";
+        std::cout << "[CodeLexer] inheritance edges: " << inherits << "\n";
+        return 0;
+    }
     if (graphOnly) {
         printGraphSummary(result);
         return 0;
