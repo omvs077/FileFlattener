@@ -6,6 +6,9 @@
 #include "StructureExporter.h"
 #include "FlattenWorker.h"
 #include "GraphView.h"
+#include "ProjectDetector.h"
+#include "CodeLexer.h"
+#include "CodeGraphView.h"
 #include <QTabWidget>
 
 #include <QWidget>
@@ -134,6 +137,7 @@ void MainWindow::setupUi() {
     splitter->setStretchFactor(1, 1);
 
     QTabWidget* tabs = new QTabWidget();
+    m_tabWidget = tabs;
     tabs->addTab(splitter, "Files");
     QWidget* graphTab = new QWidget();
     QVBoxLayout* graphLayout = new QVBoxLayout(graphTab);
@@ -376,6 +380,7 @@ void MainWindow::runScan(const QString& path) {
     saveRecentProject(QString::fromStdString(root.string()));
     populateTree();
     populateAnalyticsTable();
+    maybeShowCodeGraphTab(root);
 
     m_statusLabel->setText(QString("Scan complete. %1 files, %2 directories, %3 bytes total. (%4 excluded by filters)")
         .arg(result.files.size())
@@ -661,39 +666,94 @@ void MainWindow::populateAnalyticsTable() {
     }
 }
 
+void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
+    m_lastDetection = ProjectDetector::detect(root);
 
+    if (m_codeGraphTab) {
+        int idx = m_tabWidget->indexOf(m_codeGraphTab);
+        if (idx != -1) {
+            m_tabWidget->removeTab(idx);
+        }
+        m_codeGraphTab->deleteLater();
+        m_codeGraphTab = nullptr;
+        m_codeGraphView = nullptr;
+    }
 
+    if (!m_lastDetection.isCodeProject) {
+        return;
+    }
 
+    m_lastCodeGraphRoot = root;
 
+    QWidget* tab = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(tab);
 
+    QLabel* typeLabel = new QLabel(
+        QString("Detected project type: %1").arg(QString::fromStdString(m_lastDetection.displayName)));
+    layout->addWidget(typeLabel);
 
+    QPushButton* generateBtn = new QPushButton("Generate Code Graph");
+    layout->addWidget(generateBtn);
 
+    QLabel* statusLabel = new QLabel("Click Generate to analyze the codebase.");
+    layout->addWidget(statusLabel);
 
+    CodeGraphView* graphView = new CodeGraphView();
+    graphView->hide();
+    layout->addWidget(graphView, 1);
+    m_codeGraphView = graphView;
 
+    connect(generateBtn, &QPushButton::clicked, this, [this, statusLabel, generateBtn]() {
+        std::vector<std::filesystem::path> sourceFiles;
+        static const std::vector<std::string> kExts = {
+            ".cpp", ".h", ".hpp", ".cc", ".cxx", ".py", ".js", ".ts", ".jsx", ".tsx"
+        };
+        for (const auto& file : m_lastScanResult.files) {
+            std::string ext = file.absolutePath.extension().string();
+            for (auto& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (std::find(kExts.begin(), kExts.end(), ext) != kExts.end()) {
+                sourceFiles.push_back(file.absolutePath);
+            }
+        }
 
+        m_lastCodeGraph = CodeLexer::analyze(m_lastCodeGraphRoot, sourceFiles);
 
+        size_t nodeCount = m_lastCodeGraph.nodes.size();
+        if (nodeCount > 500) {
+            CodeGraph trimmed;
+            trimmed.nodes.reserve(500);
+            std::unordered_map<int,int> keep;
+            for (const auto& n : m_lastCodeGraph.nodes) {
+                if (n.type != CodeNodeType::Method && n.type != CodeNodeType::Function) {
+                    keep[n.id] = 1;
+                    trimmed.nodes.push_back(n);
+                }
+            }
+            for (const auto& n : m_lastCodeGraph.nodes) {
+                if ((n.type == CodeNodeType::Method || n.type == CodeNodeType::Function) && trimmed.nodes.size() < 500) {
+                    keep[n.id] = 1;
+                    trimmed.nodes.push_back(n);
+                }
+            }
+            for (const auto& e : m_lastCodeGraph.edges) {
+                if (keep.count(e.fromId) && keep.count(e.toId)) {
+                    trimmed.edges.push_back(e);
+                }
+            }
+            m_lastCodeGraph = trimmed;
+            statusLabel->setText(QString("Graph too large — showing %1 nodes (methods truncated).").arg(m_lastCodeGraph.nodes.size()));
+        } else {
+            statusLabel->setText(QString("Generated: %1 nodes, %2 edges.").arg(nodeCount).arg(m_lastCodeGraph.edges.size()));
+        }
 
+        m_codeGraphView->setCodeGraph(m_lastCodeGraph);
+        m_codeGraphView->show();
+        generateBtn->setText("Regenerate Code Graph");
+    });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    m_codeGraphTab = tab;
+    m_tabWidget->addTab(m_codeGraphTab, "Code Graph");
+}
 
 QStringList MainWindow::loadRecentProjects() {
     QSettings settings("FileFlattener", "FileFlattenerApp");
@@ -787,3 +847,4 @@ void MainWindow::onGenerateGraphClicked() {
     m_graphView->setGraphModel(model);
     m_graphStatusLabel->setText("Graph ready" + mode + ". Drag nodes, scroll to zoom, right-click to pan.");
 }
+

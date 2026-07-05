@@ -26,6 +26,8 @@ add_executable(FileFlattenerApp
     app/include/FlattenWorker.h
     app/GraphView.cpp
     app/include/GraphView.h
+    app/CodeGraphView.cpp
+    app/include/CodeGraphView.h
 )
 target_include_directories(FileFlattenerApp PRIVATE app/include)
 target_link_libraries(FileFlattenerApp PRIVATE FileFlattenerCore Qt6::Widgets)
@@ -48,6 +50,7 @@ if(WINDEPLOYQT_EXE)
         COMMENT "Deploying Qt dependencies"
     )
 endif()
+
 
 
 

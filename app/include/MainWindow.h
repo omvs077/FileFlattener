@@ -2,6 +2,9 @@
 #include <QMainWindow>
 class QToolButton;
 #include "FileScanner.h"
+#include "ProjectDetector.h"
+#include "CodeGraphView.h"
+#include <filesystem>
 
 class QLineEdit;
 class QPushButton;
@@ -13,6 +16,7 @@ class QThread;
 class QProgressDialog;
 class FlattenWorker;
 class GraphView;
+class QTabWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -78,6 +82,13 @@ private:
     FlattenWorker* m_worker = nullptr;
     QProgressDialog* m_progressDialog = nullptr;
     GraphView* m_graphView = nullptr;
+    QTabWidget* m_tabWidget = nullptr;
+    void maybeShowCodeGraphTab(const std::filesystem::path& root);
+    ProjectDetectionResult m_lastDetection;
+    QWidget* m_codeGraphTab = nullptr;
+    CodeGraphView* m_codeGraphView = nullptr;
+    CodeGraph m_lastCodeGraph;
+    std::filesystem::path m_lastCodeGraphRoot;
     QLabel* m_graphStatusLabel = nullptr;
 };
 
