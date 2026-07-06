@@ -23,6 +23,57 @@ void CodeGraphView::wheelEvent(QWheelEvent* event) {
     scale(factor, factor);
 }
 
+void CodeGraphView::zoomToFit() {
+    if (!m_scene) return;
+    QRectF r = m_scene->itemsBoundingRect();
+    if (r.isEmpty()) return;
+    fitInView(r, Qt::KeepAspectRatio);
+}
+
+void CodeGraphView::searchNodes(const QString& query) {
+    QString q = query.trimmed();
+    QGraphicsItem* firstMatch = nullptr;
+
+    for (auto& kv : m_searchableItems) {
+        auto* item = kv.second;
+        bool matches = !q.isEmpty() && kv.first.contains(q, Qt::CaseInsensitive);
+
+        if (auto* rect = qgraphicsitem_cast<QGraphicsRectItem*>(item)) {
+            QPen pen = rect->pen();
+            pen.setColor(matches ? QColor(220, 30, 30) : pen.color());
+            rect->setPen(pen);
+        }
+
+        QPen basePen;
+        if (item->data(0).isValid()) {
+            basePen = item->data(0).value<QPen>();
+        } else {
+            basePen = (qgraphicsitem_cast<QGraphicsRectItem*>(item))
+                ? qgraphicsitem_cast<QGraphicsRectItem*>(item)->pen()
+                : qgraphicsitem_cast<QGraphicsEllipseItem*>(item)->pen();
+            item->setData(0, QVariant::fromValue(basePen));
+        }
+
+        QPen newPen = basePen;
+        if (matches) {
+            newPen.setColor(QColor(220, 30, 30));
+            newPen.setWidth(3);
+        }
+
+        if (auto* rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(item)) {
+            rectItem->setPen(newPen);
+        } else if (auto* ellItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(item)) {
+            ellItem->setPen(newPen);
+        }
+
+        if (matches && !firstMatch) firstMatch = item;
+    }
+
+    if (firstMatch) {
+        centerOn(firstMatch);
+    }
+}
+
 void CodeGraphView::setCodeGraph(const CodeGraph& graph) {
     m_graph = graph;
     layoutAndRender();
@@ -30,6 +81,7 @@ void CodeGraphView::setCodeGraph(const CodeGraph& graph) {
 
 void CodeGraphView::layoutAndRender() {
     m_scene->clear();
+    m_searchableItems.clear();
 
     const qreal fileW = 180, classW = 150, methodW = 170;
     const qreal nodeH = 24;
@@ -144,6 +196,7 @@ void CodeGraphView::layoutAndRender() {
                      br.top() + (br.height() - tb.height()) / 2);
 
         m_scene->addItem(item);
+        m_searchableItems.push_back({label, item});
     }
 
     for (const auto& edge : m_graph.edges) {

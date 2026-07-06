@@ -698,10 +698,33 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
     QLabel* statusLabel = new QLabel("Click Generate to analyze the codebase.");
     layout->addWidget(statusLabel);
 
+    QHBoxLayout* legendLayout = new QHBoxLayout();
+    QLabel* legendLabel = new QLabel(
+        "<span style='color:#5878DC;'>&#9644;</span> Includes&nbsp;&nbsp;"
+        "<span style='color:#B4B4B4;'>&#9644;</span> Contains&nbsp;&nbsp;"
+        "<span style='color:#DC8C3C;'>&#9644;</span> Inherits&nbsp;&nbsp;&nbsp;"
+        "<span style='color:#5078A0;'>&#9632;</span> File&nbsp;&nbsp;"
+        "<span style='color:#5AA05A;'>&#9632;</span> Class/Struct&nbsp;&nbsp;"
+        "<span style='color:#B4823C;'>&#9679;</span> Method/Function");
+    legendLayout->addWidget(legendLabel);
+    legendLayout->addStretch();
+    layout->addLayout(legendLayout);
+
+    QHBoxLayout* toolbarLayout = new QHBoxLayout();
+    QLineEdit* codeSearchEdit = new QLineEdit();
+    codeSearchEdit->setPlaceholderText("Search nodes...");
+    toolbarLayout->addWidget(codeSearchEdit, 1);
+    QPushButton* fitBtn = new QPushButton("Zoom to Fit");
+    toolbarLayout->addWidget(fitBtn);
+    layout->addLayout(toolbarLayout);
+
     CodeGraphView* graphView = new CodeGraphView();
     graphView->hide();
     layout->addWidget(graphView, 1);
     m_codeGraphView = graphView;
+
+    connect(codeSearchEdit, &QLineEdit::textChanged, graphView, &CodeGraphView::searchNodes);
+    connect(fitBtn, &QPushButton::clicked, graphView, &CodeGraphView::zoomToFit);
 
     connect(generateBtn, &QPushButton::clicked, this, [this, statusLabel, generateBtn]() {
         std::vector<std::filesystem::path> sourceFiles;
@@ -847,4 +870,5 @@ void MainWindow::onGenerateGraphClicked() {
     m_graphView->setGraphModel(model);
     m_graphStatusLabel->setText("Graph ready" + mode + ". Drag nodes, scroll to zoom, right-click to pan.");
 }
+
 
