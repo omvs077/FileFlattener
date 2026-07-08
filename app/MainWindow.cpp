@@ -9,6 +9,7 @@
 #include "ProjectDetector.h"
 #include "CodeLexer.h"
 #include "CodeGraphView.h"
+#include "CodeAnalysisWorker.h"
 #include <QTabWidget>
 
 #include <QWidget>
@@ -456,6 +457,9 @@ void MainWindow::onFlattenZipClicked() {
 
     connect(m_worker, &FlattenWorker::finishedSuccess, m_workerThread, &QThread::quit);
     connect(m_worker, &FlattenWorker::finishedError, m_workerThread, &QThread::quit);
+    connect(m_worker, &FlattenWorker::finishedCancelled, this, &MainWindow::onWorkerFinishedCancelled);
+    connect(m_worker, &FlattenWorker::finishedCancelled, m_workerThread, &QThread::quit);
+    connect(m_progressDialog, &QProgressDialog::canceled, m_worker, &FlattenWorker::requestCancel);
     connect(m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
     connect(m_workerThread, &QThread::finished, m_workerThread, &QObject::deleteLater);
 
@@ -516,6 +520,18 @@ void MainWindow::onWorkerFinishedError(QString errorMessage) {
 
     m_statusLabel->setText("Export failed.");
     QMessageBox::critical(this, "Export Failed", errorMessage);
+}
+
+void MainWindow::onWorkerFinishedCancelled() {
+    if (m_progressDialog) {
+        m_progressDialog->close();
+        m_progressDialog->deleteLater();
+        m_progressDialog = nullptr;
+    }
+    m_flattenZipBtn->setEnabled(true);
+    m_scanBtn->setEnabled(true);
+
+    m_statusLabel->setText("Export cancelled.");
 }
 
 static QStringList splitPathSegments(const QString& path) {
@@ -709,6 +725,7 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
     legendLayout->addWidget(legendLabel);
     legendLayout->addStretch();
     layout->addLayout(legendLayout);
+    legendLabel->hide();
 
     QHBoxLayout* toolbarLayout = new QHBoxLayout();
     QLineEdit* codeSearchEdit = new QLineEdit();
@@ -717,6 +734,8 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
     QPushButton* fitBtn = new QPushButton("Zoom to Fit");
     toolbarLayout->addWidget(fitBtn);
     layout->addLayout(toolbarLayout);
+    codeSearchEdit->hide();
+    fitBtn->hide();
 
     CodeGraphView* graphView = new CodeGraphView();
     graphView->hide();
@@ -726,7 +745,7 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
     connect(codeSearchEdit, &QLineEdit::textChanged, graphView, &CodeGraphView::searchNodes);
     connect(fitBtn, &QPushButton::clicked, graphView, &CodeGraphView::zoomToFit);
 
-    connect(generateBtn, &QPushButton::clicked, this, [this, statusLabel, generateBtn]() {
+    connect(generateBtn, &QPushButton::clicked, this, [this, statusLabel, generateBtn, legendLabel, codeSearchEdit, fitBtn]() {
         std::vector<std::filesystem::path> sourceFiles;
         static const std::vector<std::string> kExts = {
             ".cpp", ".h", ".hpp", ".cc", ".cxx", ".py", ".js", ".ts", ".jsx", ".tsx"
@@ -739,39 +758,64 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
             }
         }
 
-        m_lastCodeGraph = CodeLexer::analyze(m_lastCodeGraphRoot, sourceFiles);
-
-        size_t nodeCount = m_lastCodeGraph.nodes.size();
-        if (nodeCount > 500) {
-            CodeGraph trimmed;
-            trimmed.nodes.reserve(500);
-            std::unordered_map<int,int> keep;
-            for (const auto& n : m_lastCodeGraph.nodes) {
-                if (n.type != CodeNodeType::Method && n.type != CodeNodeType::Function) {
-                    keep[n.id] = 1;
-                    trimmed.nodes.push_back(n);
-                }
-            }
-            for (const auto& n : m_lastCodeGraph.nodes) {
-                if ((n.type == CodeNodeType::Method || n.type == CodeNodeType::Function) && trimmed.nodes.size() < 500) {
-                    keep[n.id] = 1;
-                    trimmed.nodes.push_back(n);
-                }
-            }
-            for (const auto& e : m_lastCodeGraph.edges) {
-                if (keep.count(e.fromId) && keep.count(e.toId)) {
-                    trimmed.edges.push_back(e);
-                }
-            }
-            m_lastCodeGraph = trimmed;
-            statusLabel->setText(QString("Graph too large — showing %1 nodes (methods truncated).").arg(m_lastCodeGraph.nodes.size()));
-        } else {
-            statusLabel->setText(QString("Generated: %1 nodes, %2 edges.").arg(nodeCount).arg(m_lastCodeGraph.edges.size()));
+        static const size_t kMaxSourceFiles = 400;
+        bool filesTruncated = false;
+        if (sourceFiles.size() > kMaxSourceFiles) {
+            sourceFiles.resize(kMaxSourceFiles);
+            filesTruncated = true;
         }
 
-        m_codeGraphView->setCodeGraph(m_lastCodeGraph);
-        m_codeGraphView->show();
-        generateBtn->setText("Regenerate Code Graph");
+        generateBtn->setEnabled(false);
+        statusLabel->setText(QString("Analyzing %1 source files...").arg(sourceFiles.size()));
+
+        auto* thread = new QThread(this);
+        auto* worker = new CodeAnalysisWorker(m_lastCodeGraphRoot, sourceFiles);
+        worker->moveToThread(thread);
+
+        connect(thread, &QThread::started, worker, &CodeAnalysisWorker::run);
+        connect(worker, &CodeAnalysisWorker::finished, this,
+            [this, statusLabel, generateBtn, legendLabel, codeSearchEdit, fitBtn, filesTruncated](CodeGraph graph) {
+                size_t nodeCount = graph.nodes.size();
+                if (nodeCount > 500) {
+                    CodeGraph trimmed;
+                    std::unordered_map<int,int> keep;
+                    auto tryAdd = [&](CodeNodeType t) {
+                        for (const auto& n : graph.nodes) {
+                            if (n.type == t && trimmed.nodes.size() < 500) {
+                                keep[n.id] = 1;
+                                trimmed.nodes.push_back(n);
+                            }
+                        }
+                    };
+                    tryAdd(CodeNodeType::File);
+                    tryAdd(CodeNodeType::Class);
+                    tryAdd(CodeNodeType::Struct);
+                    tryAdd(CodeNodeType::Method);
+                    tryAdd(CodeNodeType::Function);
+                    for (const auto& e : graph.edges) {
+                        if (keep.count(e.fromId) && keep.count(e.toId)) trimmed.edges.push_back(e);
+                    }
+                    graph = trimmed;
+                    statusLabel->setText(QString("Graph too large — showing %1 nodes (truncated).").arg(graph.nodes.size()));
+                } else {
+                    QString msg = QString("Generated: %1 nodes, %2 edges.").arg(nodeCount).arg(graph.edges.size());
+                    if (filesTruncated) msg += " (source files truncated to 400)";
+                    statusLabel->setText(msg);
+                }
+
+                m_lastCodeGraph = graph;
+                m_codeGraphView->setCodeGraph(m_lastCodeGraph);
+                m_codeGraphView->show();
+                legendLabel->show();
+                codeSearchEdit->show();
+                fitBtn->show();
+                generateBtn->setText("Regenerate Code Graph");
+                generateBtn->setEnabled(true);
+            });
+        connect(worker, &CodeAnalysisWorker::finished, thread, &QThread::quit);
+        connect(thread, &QThread::finished, worker, &QObject::deleteLater);
+        connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+        thread->start();
     });
 
     m_codeGraphTab = tab;

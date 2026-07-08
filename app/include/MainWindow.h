@@ -44,6 +44,7 @@ private slots:
     void onWorkerProgressChanged(int percent);
     void onWorkerFinishedSuccess(QString zipPath);
     void onWorkerFinishedError(QString errorMessage);
+    void onWorkerFinishedCancelled();
     void onPresetChanged(int index);
 
 private:
