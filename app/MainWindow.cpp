@@ -56,7 +56,23 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::setupUi() {
     QWidget* central = new QWidget(this);
+    setStyleSheet(
+        "QWidget { font-family: 'Segoe UI'; font-size: 13px; }"
+        "QLineEdit, QComboBox { border: 1px solid #c9ced6; border-radius: 6px; padding: 5px 8px; background: white; }"
+        "QLineEdit:focus, QComboBox:focus { border: 1px solid #1976d2; }"
+        "QPushButton { border: 1px solid #c9ced6; border-radius: 6px; padding: 5px 12px; background: #fafbfc; }"
+        "QPushButton:hover { background: #f0f2f5; }"
+        "QPushButton:pressed { background: #e4e7eb; }"
+        "QTabWidget::pane { border: 1px solid #d8dce1; border-radius: 6px; top: -1px; }"
+        "QTabBar::tab { background: transparent; padding: 8px 16px; margin-right: 2px; color: #666; border-bottom: 2px solid transparent; }"
+        "QTabBar::tab:selected { color: #1976d2; border-bottom: 2px solid #1976d2; font-weight: bold; }"
+        "QTabBar::tab:hover { color: #1976d2; }"
+        "QToolButton { border: 1px solid #c9ced6; border-radius: 6px; padding: 5px 10px; background: #fafbfc; }"
+        "QToolButton:hover { background: #f0f2f5; }"
+    );
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
+    mainLayout->setContentsMargins(10, 10, 10, 8);
+    mainLayout->setSpacing(8);
 
     QHBoxLayout* rootRow = new QHBoxLayout();
     rootRow->addWidget(new QLabel("Root Folder:"));
@@ -90,6 +106,13 @@ void MainWindow::setupUi() {
     presetRow->addWidget(m_presetCombo);
     connect(m_presetCombo, &QComboBox::currentIndexChanged, this, &MainWindow::onPresetChanged);
     m_scanBtn = new QPushButton("Scan");
+    m_scanBtn->setMinimumHeight(32);
+    m_scanBtn->setStyleSheet(
+        "QPushButton { background-color: #ef6c00; color: white; font-weight: bold; border-radius: 4px; border: none; padding: 4px 16px; }"
+        "QPushButton:hover { background-color: #f57c00; }"
+        "QPushButton:pressed { background-color: #e65100; }"
+        "QPushButton:disabled { background-color: #9e9e9e; }"
+    );
     presetRow->addWidget(m_scanBtn);
     mainLayout->addLayout(presetRow);
 
@@ -160,10 +183,9 @@ void MainWindow::setupUi() {
     mainLayout->addWidget(tabs, 1);
 
     m_statusLabel = new QLabel("Ready. Select a folder and click Scan.");
-    mainLayout->addWidget(m_statusLabel);
 
     QHBoxLayout* actionRow = new QHBoxLayout();
-    actionRow->addStretch();
+    actionRow->addWidget(m_statusLabel, 1);
     m_flattenZipBtn = new QPushButton("FLATTEN && ZIP");
     m_flattenZipBtn->setMinimumHeight(36);
     m_flattenZipBtn->setMinimumWidth(180);
@@ -703,6 +725,7 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
 
     QWidget* tab = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(tab);
+    layout->setSpacing(6);
 
     QLabel* typeLabel = new QLabel(
         QString("Detected project type: %1").arg(QString::fromStdString(m_lastDetection.displayName)));
@@ -739,7 +762,8 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
 
     CodeGraphView* graphView = new CodeGraphView();
     graphView->hide();
-    layout->addWidget(graphView, 1);
+    layout->addWidget(graphView, 20);
+    layout->addStretch(1);
     m_codeGraphView = graphView;
 
     connect(codeSearchEdit, &QLineEdit::textChanged, graphView, &CodeGraphView::searchNodes);
