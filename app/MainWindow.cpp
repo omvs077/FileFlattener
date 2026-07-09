@@ -68,6 +68,7 @@ void MainWindow::setupUi() {
         "QTabBar::tab:selected { color: #1976d2; border-bottom: 2px solid #1976d2; font-weight: bold; }"
         "QTabBar::tab:hover { color: #1976d2; }"
         "QToolButton { border: 1px solid #c9ced6; border-radius: 6px; padding: 5px 10px; background: #fafbfc; }"
+        "QToolButton::menu-indicator { subcontrol-origin: padding; subcontrol-position: right center; right: 6px; width: 10px; }"
         "QToolButton:hover { background: #f0f2f5; }"
     );
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
@@ -82,8 +83,9 @@ void MainWindow::setupUi() {
     m_browseRootBtn = new QPushButton("Browse");
     rootRow->addWidget(m_browseRootBtn);
     m_recentBtn = new QToolButton();
-    m_recentBtn->setText("Recent \xe2\x96\xbe");
+    m_recentBtn->setText("Recent");
     m_recentBtn->setPopupMode(QToolButton::InstantPopup);
+    m_recentBtn->setStyleSheet("QToolButton { padding: 5px 24px 5px 10px; }");
     rootRow->addWidget(m_recentBtn);
     mainLayout->addLayout(rootRow);
 
