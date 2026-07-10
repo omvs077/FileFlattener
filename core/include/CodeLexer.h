@@ -23,7 +23,8 @@ struct CodeNode {
 enum class CodeEdgeType {
     Includes,
     Contains,
-    Inherits
+    Inherits,
+    Calls
 };
 
 struct CodeEdge {

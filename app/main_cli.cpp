@@ -6,6 +6,7 @@
 #include "GraphModel.h"
 #include "ProjectDetector.h"
 #include "CodeLexer.h"
+#include "CallGraphAnalyzer.h"
 
 namespace {
 void printGraphSummary(const ScanResult& result) {
@@ -73,6 +74,29 @@ int main(int argc, char* argv[]) {
         std::cout << "[CodeLexer] methods/functions: " << methods << "\n";
         std::cout << "[CodeLexer] #include edges: " << includes << "\n";
         std::cout << "[CodeLexer] inheritance edges: " << inherits << "\n";
+        return 0;
+    }
+    bool callsOnly = (argc > 3) && std::string(argv[3]) == "--calls";
+    if (callsOnly) {
+        std::vector<std::filesystem::path> sources;
+        for (const auto& f : result.files) sources.push_back(f.absolutePath);
+        CodeGraph baseGraph = CodeLexer::analyze(root, sources);
+        CallGraphResult cr = CallGraphAnalyzer::analyze(root, sources, baseGraph);
+        std::cout << "\n[CallGraphAnalyzer] call edges: " << cr.callEdgeCount << "\n";
+        std::cout << "[CallGraphAnalyzer] edge cap hit: " << (cr.edgeCapped ? "YES" : "no") << "\n";
+        std::cout << "[CallGraphAnalyzer] file(s) skipped (too large): " << (cr.fileSizeSkipped ? "YES" : "no") << "\n";
+        int shown = 0;
+        for (const auto& e : cr.graph.edges) {
+            if (e.type != CodeEdgeType::Calls) continue;
+            if (shown >= 25) { std::cout << "  ... (truncated, showing first 25)\n"; break; }
+            std::string fromName, toName;
+            for (const auto& n : cr.graph.nodes) {
+                if (n.id == e.fromId) fromName = n.name;
+                if (n.id == e.toId) toName = n.name;
+            }
+            std::cout << "  " << fromName << " -> " << toName << "\n";
+            ++shown;
+        }
         return 0;
     }
     if (graphOnly) {

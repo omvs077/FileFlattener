@@ -8,6 +8,7 @@
     src/GraphModel.cpp
     src/ProjectDetector.cpp
     src/CodeLexer.cpp
+    src/CallGraphAnalyzer.cpp
 )
 
 set_target_properties(FileFlattenerCore PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
