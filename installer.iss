@@ -1,5 +1,5 @@
 ﻿#define MyAppName "FileFlattener"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Dvvyom"
 #define MyAppURL "https://github.com/omvs077/FileFlattener"
 #define MyAppExeName "FileFlattenerApp.exe"
@@ -15,7 +15,7 @@ AppSupportURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=D:\My projects\FileFlattener\installer
-OutputBaseFilename=FileFlattener-v1.0.0-Setup
+OutputBaseFilename=FileFlattener-v1.1.0-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

@@ -4,6 +4,7 @@ class QToolButton;
 #include "FileScanner.h"
 #include "ProjectDetector.h"
 #include "CodeGraphView.h"
+#include "CallGraphView.h"
 #include <filesystem>
 
 class QLineEdit;
@@ -91,14 +92,7 @@ private:
     CodeGraph m_lastCodeGraph;
     std::filesystem::path m_lastCodeGraphRoot;
     QLabel* m_graphStatusLabel = nullptr;
+    void maybeShowCallGraphTab(const std::filesystem::path& root);
+    QWidget* m_callGraphTab = nullptr;
+    CallGraphView* m_callGraphView = nullptr;
 };
-
-
-
-
-
-
-
-
-
-

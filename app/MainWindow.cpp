@@ -10,6 +10,8 @@
 #include "CodeLexer.h"
 #include "CodeGraphView.h"
 #include "CodeAnalysisWorker.h"
+#include "CallGraphView.h"
+#include "CallGraphWorker.h"
 #include <QTabWidget>
 
 #include <QWidget>
@@ -406,6 +408,7 @@ void MainWindow::runScan(const QString& path) {
     populateTree();
     populateAnalyticsTable();
     maybeShowCodeGraphTab(root);
+    maybeShowCallGraphTab(root);
 
     m_statusLabel->setText(QString("Scan complete. %1 files, %2 directories, %3 bytes total. (%4 excluded by filters)")
         .arg(result.files.size())
@@ -846,6 +849,106 @@ void MainWindow::maybeShowCodeGraphTab(const std::filesystem::path& root) {
 
     m_codeGraphTab = tab;
     m_tabWidget->addTab(m_codeGraphTab, "Code Graph");
+}
+
+void MainWindow::maybeShowCallGraphTab(const std::filesystem::path& root) {
+    if (m_callGraphTab) {
+        int idx = m_tabWidget->indexOf(m_callGraphTab);
+        if (idx != -1) {
+            m_tabWidget->removeTab(idx);
+        }
+        m_callGraphTab->deleteLater();
+        m_callGraphTab = nullptr;
+        m_callGraphView = nullptr;
+    }
+
+    if (!m_lastDetection.isCodeProject) {
+        return;
+    }
+
+    QWidget* tab = new QWidget();
+    QVBoxLayout* layout = new QVBoxLayout(tab);
+    layout->setSpacing(6);
+
+    QLabel* infoLabel = new QLabel("C++ call graph: shows which functions/methods call which others.");
+    layout->addWidget(infoLabel);
+
+    QPushButton* generateBtn = new QPushButton("Generate Call Graph");
+    layout->addWidget(generateBtn);
+
+    QLabel* statusLabel = new QLabel("Click Generate to analyze call relationships.");
+    layout->addWidget(statusLabel);
+
+    QHBoxLayout* toolbarLayout = new QHBoxLayout();
+    QLineEdit* callSearchEdit = new QLineEdit();
+    callSearchEdit->setPlaceholderText("Search nodes...");
+    toolbarLayout->addWidget(callSearchEdit, 1);
+    QPushButton* fitBtn = new QPushButton("Zoom to Fit");
+    toolbarLayout->addWidget(fitBtn);
+    layout->addLayout(toolbarLayout);
+    callSearchEdit->hide();
+    fitBtn->hide();
+
+    CallGraphView* graphView = new CallGraphView();
+    graphView->hide();
+    layout->addWidget(graphView, 20);
+    layout->addStretch(1);
+    m_callGraphView = graphView;
+
+    connect(callSearchEdit, &QLineEdit::textChanged, graphView, &CallGraphView::searchNodes);
+    connect(fitBtn, &QPushButton::clicked, graphView, &CallGraphView::zoomToFit);
+
+    connect(generateBtn, &QPushButton::clicked, this, [this, root, statusLabel, generateBtn, callSearchEdit, fitBtn]() {
+        std::vector<std::filesystem::path> sourceFiles;
+        static const std::vector<std::string> kCppExts = {
+            ".cpp", ".h", ".hpp", ".cc", ".cxx"
+        };
+        for (const auto& file : m_lastScanResult.files) {
+            std::string ext = file.absolutePath.extension().string();
+            for (auto& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (std::find(kCppExts.begin(), kCppExts.end(), ext) != kCppExts.end()) {
+                sourceFiles.push_back(file.absolutePath);
+            }
+        }
+
+        static const size_t kMaxSourceFiles = 400;
+        bool filesTruncated = false;
+        if (sourceFiles.size() > kMaxSourceFiles) {
+            sourceFiles.resize(kMaxSourceFiles);
+            filesTruncated = true;
+        }
+
+        generateBtn->setEnabled(false);
+        statusLabel->setText(QString("Analyzing %1 C++ files for call relationships...").arg(sourceFiles.size()));
+
+        auto* thread = new QThread(this);
+        auto* worker = new CallGraphWorker(root, sourceFiles);
+        worker->moveToThread(thread);
+
+        connect(thread, &QThread::started, worker, &CallGraphWorker::run);
+        connect(worker, &CallGraphWorker::finished, this,
+            [this, statusLabel, generateBtn, callSearchEdit, fitBtn, filesTruncated](CallGraphResult result) {
+                QString msg = QString("Call edges found: %1.").arg(result.callEdgeCount);
+                if (result.edgeCapped) msg += " (capped at 1500 edges)";
+                if (result.fileSizeSkipped) msg += " Some large files were skipped.";
+                if (filesTruncated) msg += " (source files truncated to 400)";
+                statusLabel->setText(msg);
+
+                m_callGraphView->setCallGraph(result.graph);
+                m_callGraphView->show();
+                callSearchEdit->show();
+                fitBtn->show();
+                generateBtn->setText("Regenerate Call Graph");
+                generateBtn->setEnabled(true);
+            });
+        connect(worker, &CallGraphWorker::finished, thread, &QThread::quit);
+        connect(thread, &QThread::finished, worker, &QObject::deleteLater);
+        connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+        thread->start();
+    });
+
+    m_callGraphTab = tab;
+    m_tabWidget->addTab(m_callGraphTab, "Call Graph");
 }
 
 QStringList MainWindow::loadRecentProjects() {
