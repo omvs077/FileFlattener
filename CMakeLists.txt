@@ -32,6 +32,8 @@ add_executable(FileFlattenerApp
     app/include/CodeAnalysisWorker.h
     app/CallGraphWorker.cpp
     app/include/CallGraphWorker.h
+    app/CallGraphView.cpp
+    app/include/CallGraphView.h
 )
 target_include_directories(FileFlattenerApp PRIVATE app/include)
 target_link_libraries(FileFlattenerApp PRIVATE FileFlattenerCore Qt6::Widgets)
