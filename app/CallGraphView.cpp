@@ -7,20 +7,24 @@
 #include <QWheelEvent>
 #include <QBrush>
 #include <QPen>
+#include <QFont>
+#include <QFontMetrics>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
 #include <cmath>
-#include <random>
 
 namespace {
-constexpr qreal kNodeW = 170.0;
-constexpr qreal kNodeH = 24.0;
-constexpr qreal kRepulsion = 20000.0;
-constexpr qreal kSpringStrength = 0.016;
+constexpr qreal kNodeH = 26.0;
+constexpr qreal kMinNodeW = 110.0;
+constexpr qreal kMaxNodeW = 320.0;
+constexpr qreal kLabelPadding = 28.0;
+constexpr qreal kRepulsion = 42000.0;
+constexpr qreal kSpringStrength = 0.014;
+constexpr qreal kSpringGap = 90.0;
 constexpr qreal kDamping = 0.85;
-constexpr qreal kMaxSpeed = 12.0;
-constexpr int kIterations = 200;
+constexpr qreal kMaxSpeed = 14.0;
+constexpr int kIterations = 320;
 }
 
 CallGraphView::CallGraphView(QWidget* parent) : QGraphicsView(parent) {
@@ -82,7 +86,6 @@ void CallGraphView::layoutAndRender() {
     m_scene->clear();
     m_searchableItems.clear();
 
-    // Only render Method/Function nodes that participate in at least one Calls edge.
     std::unordered_set<int> participating;
     for (const auto& e : m_graph.edges) {
         if (e.type != CodeEdgeType::Calls) continue;
@@ -110,12 +113,25 @@ void CallGraphView::layoutAndRender() {
         return;
     }
 
-    // Deterministic initial layout on a circle.
+    std::unordered_map<int, const CodeNode*> nodeById;
+    for (const auto& n2 : m_graph.nodes) nodeById[n2.id] = &n2;
+
+    QFont font;
+    QFontMetrics fm(font);
+    std::unordered_map<int, qreal> nodeWidth;
+    for (int id : nodeIds) {
+        const CodeNode* node = nodeById[id];
+        QString label = node ? QString::fromStdString(node->name) : QString();
+        qreal w = fm.horizontalAdvance(label) + kLabelPadding;
+        w = std::max(kMinNodeW, std::min(kMaxNodeW, w));
+        nodeWidth[id] = w;
+    }
+
     std::unordered_map<int, QPointF> pos;
     std::unordered_map<int, QPointF> velocity;
     std::unordered_map<int, int> indexOf;
     const int n = static_cast<int>(nodeIds.size());
-    qreal radius = std::max<qreal>(200.0, n * 15.0);
+    qreal radius = std::max<qreal>(260.0, n * 22.0);
     for (int i = 0; i < n; ++i) {
         qreal angle = (2.0 * M_PI * i) / n;
         pos[nodeIds[i]] = QPointF(radius * std::cos(angle), radius * std::sin(angle));
@@ -123,7 +139,6 @@ void CallGraphView::layoutAndRender() {
         indexOf[nodeIds[i]] = i;
     }
 
-    // Static spring-embedder simulation.
     for (int iter = 0; iter < kIterations; ++iter) {
         std::vector<QPointF> forces(n, QPointF(0, 0));
         for (int i = 0; i < n; ++i) {
@@ -137,7 +152,7 @@ void CallGraphView::layoutAndRender() {
             }
         }
         for (const auto& [a, b] : edgePairs) {
-            qreal springLen = kNodeW + 60.0;
+            qreal springLen = (nodeWidth[a] + nodeWidth[b]) / 2.0 + kSpringGap;
             QPointF d = pos[b] - pos[a];
             qreal dist = std::max(std::sqrt(d.x()*d.x() + d.y()*d.y()), 1.0);
             QPointF f = (d / dist) * ((dist - springLen) * kSpringStrength);
@@ -153,15 +168,13 @@ void CallGraphView::layoutAndRender() {
         }
     }
 
-    std::unordered_map<int, const CodeNode*> nodeById;
-    for (const auto& n2 : m_graph.nodes) nodeById[n2.id] = &n2;
-
     for (int id : nodeIds) {
         const CodeNode* node = nodeById[id];
         if (!node) continue;
         QPointF center = pos[id];
+        qreal w = nodeWidth[id];
 
-        auto* ell = new QGraphicsEllipseItem(center.x() - kNodeW/2, center.y() - kNodeH/2, kNodeW, kNodeH);
+        auto* ell = new QGraphicsEllipseItem(center.x() - w/2, center.y() - kNodeH/2, w, kNodeH);
         ell->setBrush(QBrush(QColor(255, 235, 200)));
         ell->setPen(QPen(QColor(180, 130, 60)));
         ell->setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -186,16 +199,16 @@ void CallGraphView::layoutAndRender() {
         QPointF d = pb - pa;
         qreal len = std::max(std::sqrt(d.x()*d.x() + d.y()*d.y()), 1.0);
         QPointF unit = d / len;
-        // Trim line endpoint to the edge of the ellipse (approx via nodeW/2).
-        QPointF start = pa + unit * (kNodeW/2 * 0.6);
-        QPointF end   = pb - unit * (kNodeW/2 * 0.6);
+        qreal aHalf = nodeWidth[a] / 2.0 * 0.6;
+        qreal bHalf = nodeWidth[b] / 2.0 * 0.6;
+        QPointF start = pa + unit * aHalf;
+        QPointF end   = pb - unit * bHalf;
 
         auto* line = new QGraphicsLineItem(start.x(), start.y(), end.x(), end.y());
-        line->setPen(QPen(QColor(120, 150, 200), 1.3));
+        line->setPen(QPen(QColor(140, 165, 205), 1.1));
         line->setZValue(-1);
         m_scene->addItem(line);
 
-        // Arrowhead at target end.
         qreal arrowSize = 8.0;
         QPointF perp(-unit.y(), unit.x());
         QPolygonF arrow;
@@ -203,11 +216,11 @@ void CallGraphView::layoutAndRender() {
               << (end - unit * arrowSize + perp * (arrowSize * 0.5))
               << (end - unit * arrowSize - perp * (arrowSize * 0.5));
         auto* arrowItem = new QGraphicsPolygonItem(arrow);
-        arrowItem->setBrush(QBrush(QColor(120, 150, 200)));
+        arrowItem->setBrush(QBrush(QColor(140, 165, 205)));
         arrowItem->setPen(Qt::NoPen);
         arrowItem->setZValue(-1);
         m_scene->addItem(arrowItem);
     }
 
-    m_scene->setSceneRect(m_scene->itemsBoundingRect().adjusted(-40, -40, 40, 40));
+    m_scene->setSceneRect(m_scene->itemsBoundingRect().adjusted(-60, -60, 60, 60));
 }
