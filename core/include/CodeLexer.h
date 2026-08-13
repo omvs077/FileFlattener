@@ -40,6 +40,8 @@ struct CodeGraph {
 
 class CodeLexer {
 public:
+    static constexpr size_t kMaxFileBytes = 2 * 1024 * 1024; // 2MB, mirrors CallGraphAnalyzer
+
     static CodeGraph analyze(const std::filesystem::path& root,
                              const std::vector<std::filesystem::path>& sourceFiles);
 private:

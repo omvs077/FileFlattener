@@ -219,9 +219,14 @@ CodeGraph CodeLexer::analyze(const std::filesystem::path& root,
         node.filePath = path.string();
         fileIndex[node.name] = node.id;
         // Also index by relative path for cross-project includes.
-        auto rel = std::filesystem::relative(path, root).string();
-        std::replace(rel.begin(), rel.end(), '\\', '/');
-        fileIndex[rel] = node.id;
+        try {
+            auto rel = std::filesystem::relative(path, root).string();
+            std::replace(rel.begin(), rel.end(), '\\', '/');
+            fileIndex[rel] = node.id;
+        } catch (const std::exception&) {
+            // relative() can throw on cross-drive paths, junctions, or unusual
+            // names — the filename-only index entry above still works.
+        }
         graph.nodes.push_back(node);
     }
 
@@ -231,6 +236,11 @@ CodeGraph CodeLexer::analyze(const std::filesystem::path& root,
         auto it = fileIndex.find(name);
         if (it == fileIndex.end()) continue;
         int fileNodeId = it->second;
+
+        std::error_code sizeEc;
+        auto fsize = std::filesystem::file_size(path, sizeEc);
+        if (sizeEc || fsize > kMaxFileBytes) continue; // skip oversized/inaccessible files
+
         try {
             if (isCppFile(path))       analyzeCpp(path, fileNodeId, graph, fileIndex);
             else if (isPyFile(path))   analyzePython(path, fileNodeId, graph);
