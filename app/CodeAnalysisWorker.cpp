@@ -10,6 +10,12 @@ CodeAnalysisWorker::CodeAnalysisWorker(std::filesystem::path root,
 }
 
 void CodeAnalysisWorker::run() {
-    CodeGraph graph = CodeLexer::analyze(m_root, m_sourceFiles);
+    CodeGraph graph;
+    try {
+        graph = CodeLexer::analyze(m_root, m_sourceFiles);
+    } catch (const std::exception&) {
+        // Fall through with an empty graph rather than crashing the worker thread.
+    }
     emit finished(graph);
 }
+

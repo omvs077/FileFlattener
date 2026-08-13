@@ -11,7 +11,12 @@ CallGraphWorker::CallGraphWorker(std::filesystem::path root,
 }
 
 void CallGraphWorker::run() {
-    CodeGraph baseGraph = CodeLexer::analyze(m_root, m_sourceFiles);
-    CallGraphResult result = CallGraphAnalyzer::analyze(m_root, m_sourceFiles, baseGraph);
+    CallGraphResult result;
+    try {
+        CodeGraph baseGraph = CodeLexer::analyze(m_root, m_sourceFiles);
+        result = CallGraphAnalyzer::analyze(m_root, m_sourceFiles, baseGraph);
+    } catch (const std::exception&) {
+        // Fall through with an empty result rather than crashing the worker thread.
+    }
     emit finished(result);
 }
