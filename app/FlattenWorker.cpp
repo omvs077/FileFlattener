@@ -86,5 +86,7 @@ void FlattenWorker::run() {
     } catch (const FlattenCancelledException&) {
         QFile::remove(m_targetZipPath);
         emit finishedCancelled();
+    } catch (const std::exception&) {
+        emit finishedError("Unexpected error during flatten operation.");
     }
 }
