@@ -45,12 +45,12 @@ static const Signature kSignatures[] = {
 
 ProjectDetectionResult ProjectDetector::detect(const std::filesystem::path& root) {
     ProjectDetectionResult result;
-    if (!std::filesystem::exists(root) || !std::filesystem::is_directory(root))
+    std::error_code ec;
+    if (!std::filesystem::exists(root, ec) || ec || !std::filesystem::is_directory(root, ec) || ec)
         return result;
 
     // Collect filenames/dirnames in root only (no recursion).
     std::unordered_map<std::string, bool> entries;
-    std::error_code ec;
     for (auto& entry : std::filesystem::directory_iterator(root, ec)) {
         entries[entry.path().filename().string()] = true;
         // Also check extension-based matches (e.g. .sln).
