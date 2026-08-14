@@ -7,8 +7,8 @@ IDI_ICON1 ICON "app_icon.ico"
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,1,1,0
-PRODUCTVERSION 1,1,1,0
+FILEVERSION 1,1,2,0
+PRODUCTVERSION 1,1,2,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -21,12 +21,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Dvvyom Labs"
             VALUE "FileDescription", "FileFlattener - folder flattening and dedup tool"
-            VALUE "FileVersion", "1.1.1.0"
+            VALUE "FileVersion", "1.1.2.0"
             VALUE "InternalName", "FileFlattenerApp"
             VALUE "LegalCopyright", "Copyright (C) 2026 Dvvyom Labs"
             VALUE "OriginalFilename", "FileFlattenerApp.exe"
             VALUE "ProductName", "FileFlattener"
-            VALUE "ProductVersion", "1.1.1.0"
+            VALUE "ProductVersion", "1.1.2.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -34,5 +34,6 @@ BEGIN
         VALUE "Translation", 0x409, 1200
     END
 END
+
 
 

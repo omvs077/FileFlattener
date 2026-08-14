@@ -1,5 +1,5 @@
 ﻿#define MyAppName "FileFlattener"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #define MyAppPublisher "Dvvyom Labs"
 #define MyAppURL "https://github.com/omvs077/FileFlattener"
 #define MyAppExeName "FileFlattenerApp.exe"
@@ -15,12 +15,12 @@ AppSupportURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=D:\My projects\FileFlattener\installer
-OutputBaseFilename=FileFlattener-v1.1.1-Setup
+OutputBaseFilename=FileFlattener-v1.1.2-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
-VersionInfoVersion=1.1.1.0
+VersionInfoVersion=1.1.2.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -50,4 +50,5 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Launch FileFlattener"; Flags: n
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
 
