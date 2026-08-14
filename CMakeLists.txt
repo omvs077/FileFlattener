@@ -40,6 +40,7 @@ target_link_libraries(FileFlattenerApp PRIVATE FileFlattenerCore Qt6::Widgets)
 
 set_target_properties(FileFlattenerApp PROPERTIES
     WIN32_EXECUTABLE TRUE
+    LINK_FLAGS "/MANIFEST:NO"
 )
 
 add_custom_command(TARGET FileFlattenerApp POST_BUILD
