@@ -361,6 +361,7 @@ void GraphView::layoutAndRender() {
     // Add nodes to scene with positions.
     for (const auto& n : m_model.nodes) {
         NodeItem* item = m_nodeItems[n.id];
+        if (!item) continue; // skipped in folderOnlyMode
         item->setPos(seedPos.count(n.id) ? seedPos[n.id] : QPointF(0,0));
         m_scene->addItem(item);
 
@@ -405,10 +406,10 @@ void GraphView::onPhysicsTick() {
     if (n <= kPhysicsNodeCap) {
         std::vector<QPointF> forces(n, QPointF(0,0));
         for (int i = 0; i < n; ++i) {
-            if (!m_nodeItems[i]->isVisible()) continue;
+            if (!m_nodeItems[i] || !m_nodeItems[i]->isVisible()) continue;
             QPointF pi = m_nodeItems[i]->pos() + QPointF(m_nodeItems[i]->nodeW()/2, kNodeH/2);
             for (int j = i+1; j < n; ++j) {
-                if (!m_nodeItems[j]->isVisible()) continue;
+                if (!m_nodeItems[j] || !m_nodeItems[j]->isVisible()) continue;
                 QPointF d  = pi - (m_nodeItems[j]->pos() + QPointF(m_nodeItems[j]->nodeW()/2, kNodeH/2));
                 qreal dsq  = qMax(d.x()*d.x()+d.y()*d.y(), 1.0);
                 QPointF f  = (d/qSqrt(dsq)) * (kRepulsion/dsq);
@@ -426,6 +427,7 @@ void GraphView::onPhysicsTick() {
         }
         for (int i = 0; i < n; ++i) {
             NodeItem* item = m_nodeItems[i];
+            if (!item) continue;
             if (!item->isVisible()||item->isPinned()) { item->velocity={}; continue; }
             item->velocity = (item->velocity + forces[i]) * kDamping;
             qreal spd = qSqrt(item->velocity.x()*item->velocity.x()+item->velocity.y()*item->velocity.y());
