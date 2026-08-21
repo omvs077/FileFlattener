@@ -53,8 +53,18 @@ add_custom_command(TARGET FileFlattenerApp POST_BUILD
 find_program(WINDEPLOYQT_EXE windeployqt HINTS "C:/Qt/6.11.1/msvc2022_64/bin")
 if(WINDEPLOYQT_EXE)
     add_custom_command(TARGET FileFlattenerApp POST_BUILD
-        COMMAND ${WINDEPLOYQT_EXE} $<TARGET_FILE:FileFlattenerApp>
+        COMMAND ${WINDEPLOYQT_EXE} --compiler-runtime $<TARGET_FILE:FileFlattenerApp>
         COMMENT "Deploying Qt dependencies"
+    )
+endif()
+
+set(VC_REDIST_CRT_DIR "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Redist/MSVC/14.51.36231/x64/Microsoft.VC145.CRT")
+if(EXISTS "${VC_REDIST_CRT_DIR}")
+    add_custom_command(TARGET FileFlattenerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${VC_REDIST_CRT_DIR}"
+            "$<TARGET_FILE_DIR:FileFlattenerApp>"
+        COMMENT "Copying VC++ runtime DLLs for MSIX self-containment"
     )
 endif()
 

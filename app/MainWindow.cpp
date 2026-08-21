@@ -90,7 +90,6 @@ void MainWindow::setupUi() {
     m_recentBtn->setStyleSheet("QToolButton { padding: 5px 24px 5px 10px; }");
     rootRow->addWidget(m_recentBtn);
     mainLayout->addLayout(rootRow);
-
     QHBoxLayout* saveRow = new QHBoxLayout();
     saveRow->addWidget(new QLabel("Save Target:"));
     m_saveTargetEdit = new QLineEdit();
